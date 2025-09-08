@@ -52,7 +52,7 @@ Using JSON token file:
 GATEWAY_URL=http://localhost/currenttime/mcp ./mcp_cmds.sh ping
 
 # Target remote server
-GATEWAY_URL=https://your-server.com/mcp ./mcp_cmds.sh list
+GATEWAY_URL=https://your-server.com/currenttime/mcp ./mcp_cmds.sh list
 ```
 
 #### 2. `mcp_demo.sh` - Intelligent Agent Workflows
