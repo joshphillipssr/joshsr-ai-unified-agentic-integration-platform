@@ -1490,37 +1490,57 @@ async def oauth2_callback(
         token_data = await exchange_code_for_token(provider, code, provider_config, auth_server_url)
         logger.info(f"Token data keys: {list(token_data.keys())}")
         
-        # For Cognito, validate the access token to get groups from JWT claims
-        if provider == "cognito":
+        # For Cognito and Keycloak, try to extract user info from JWT tokens
+        if provider in ["cognito", "keycloak"]:
             try:
-                # Extract Cognito configuration from environment
-                user_pool_id = os.environ.get('COGNITO_USER_POOL_ID')
-                client_id = provider_config["client_id"]
-                region = os.environ.get('AWS_REGION', 'us-east-1')
-                
-                if user_pool_id and client_id:
-                    # Use our existing token validation to get groups from JWT
-                    validator = SimplifiedCognitoValidator(region)
-                    token_validation = validator.validate_token(
-                        token_data["access_token"], 
-                        user_pool_id, 
-                        client_id, 
-                        region
-                    )
-                    
-                    logger.info(f"Token validation result: {token_validation}")
-                    
-                    # Extract user info from token validation
-                    mapped_user = {
-                        "username": token_validation.get("username"),
-                        "email": token_validation.get("username"),  # Cognito username is usually email
-                        "name": token_validation.get("username"),
-                        "groups": token_validation.get("groups", [])
-                    }
-                    logger.info(f"User extracted from JWT token: {mapped_user}")
-                else:
-                    logger.warning("Missing Cognito configuration for JWT validation, falling back to userInfo")
-                    raise ValueError("Missing Cognito config")
+                if provider == "cognito":
+                    # Extract Cognito configuration from environment
+                    user_pool_id = os.environ.get('COGNITO_USER_POOL_ID')
+                    client_id = provider_config["client_id"]
+                    region = os.environ.get('AWS_REGION', 'us-east-1')
+
+                    if user_pool_id and client_id:
+                        # Use our existing token validation to get groups from JWT
+                        validator = SimplifiedCognitoValidator(region)
+                        token_validation = validator.validate_token(
+                            token_data["access_token"],
+                            user_pool_id,
+                            client_id,
+                            region
+                        )
+
+                        logger.info(f"Token validation result: {token_validation}")
+
+                        # Extract user info from token validation
+                        mapped_user = {
+                            "username": token_validation.get("username"),
+                            "email": token_validation.get("username"),  # Cognito username is usually email
+                            "name": token_validation.get("username"),
+                            "groups": token_validation.get("groups", [])
+                        }
+                        logger.info(f"User extracted from JWT token: {mapped_user}")
+                    else:
+                        logger.warning("Missing Cognito configuration for JWT validation, falling back to userInfo")
+                        raise ValueError("Missing Cognito config")
+                elif provider == "keycloak":
+                    # For Keycloak, decode the ID token to get user information
+                    if "id_token" in token_data:
+                        import jwt
+                        # Decode without verification for now (we trust the token since we just got it)
+                        id_token_claims = jwt.decode(token_data["id_token"], options={"verify_signature": False})
+                        logger.info(f"ID token claims: {id_token_claims}")
+
+                        # Extract user info from ID token claims
+                        mapped_user = {
+                            "username": id_token_claims.get("preferred_username") or id_token_claims.get("sub"),
+                            "email": id_token_claims.get("email"),
+                            "name": id_token_claims.get("name") or id_token_claims.get("given_name"),
+                            "groups": id_token_claims.get("groups", [])
+                        }
+                        logger.info(f"User extracted from Keycloak ID token: {mapped_user}")
+                    else:
+                        logger.warning("No ID token found in Keycloak response, falling back to userInfo")
+                        raise ValueError("Missing ID token")
                     
             except Exception as e:
                 logger.warning(f"JWT token validation failed: {e}, falling back to userInfo endpoint")

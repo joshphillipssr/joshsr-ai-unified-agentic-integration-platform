@@ -3,10 +3,10 @@ providers:
     display_name: "Keycloak"
     client_id: "${KEYCLOAK_CLIENT_ID}"
     client_secret: "${KEYCLOAK_CLIENT_SECRET}"
-    auth_url: "${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/auth"
+    auth_url: "${KEYCLOAK_EXTERNAL_URL}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/auth"
     token_url: "${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/token"
     user_info_url: "${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/userinfo"
-    logout_url: "${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/logout"
+    logout_url: "${KEYCLOAK_EXTERNAL_URL}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/logout"
     scopes: ["openid", "email", "profile"]
     response_type: "code"
     grant_type: "authorization_code"

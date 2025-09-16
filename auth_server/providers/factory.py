@@ -47,14 +47,15 @@ def _create_keycloak_provider() -> KeycloakProvider:
     """Create and configure Keycloak provider."""
     # Required configuration
     keycloak_url = os.environ.get('KEYCLOAK_URL')
+    keycloak_external_url = os.environ.get('KEYCLOAK_EXTERNAL_URL', keycloak_url)
     realm = os.environ.get('KEYCLOAK_REALM', 'mcp-gateway')
     client_id = os.environ.get('KEYCLOAK_CLIENT_ID')
     client_secret = os.environ.get('KEYCLOAK_CLIENT_SECRET')
-    
+
     # Optional M2M configuration
     m2m_client_id = os.environ.get('KEYCLOAK_M2M_CLIENT_ID')
     m2m_client_secret = os.environ.get('KEYCLOAK_M2M_CLIENT_SECRET')
-    
+
     # Validate required configuration
     missing_vars = []
     if not keycloak_url:
@@ -63,17 +64,18 @@ def _create_keycloak_provider() -> KeycloakProvider:
         missing_vars.append('KEYCLOAK_CLIENT_ID')
     if not client_secret:
         missing_vars.append('KEYCLOAK_CLIENT_SECRET')
-    
+
     if missing_vars:
         raise ValueError(
             f"Missing required Keycloak configuration: {', '.join(missing_vars)}. "
             "Please set these environment variables."
         )
-    
-    logger.info(f"Initializing Keycloak provider for realm '{realm}' at {keycloak_url}")
-    
+
+    logger.info(f"Initializing Keycloak provider for realm '{realm}' at {keycloak_url} (external: {keycloak_external_url})")
+
     return KeycloakProvider(
         keycloak_url=keycloak_url,
+        keycloak_external_url=keycloak_external_url,
         realm=realm,
         client_id=client_id,
         client_secret=client_secret,

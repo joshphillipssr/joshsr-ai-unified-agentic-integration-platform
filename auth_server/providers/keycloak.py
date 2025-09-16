@@ -29,41 +29,45 @@ class KeycloakProvider(AuthProvider):
         realm: str,
         client_id: str,
         client_secret: str,
+        keycloak_external_url: Optional[str] = None,
         m2m_client_id: Optional[str] = None,
         m2m_client_secret: Optional[str] = None
     ):
         """Initialize Keycloak provider.
-        
+
         Args:
-            keycloak_url: Base URL of the Keycloak instance
+            keycloak_url: Base URL of the Keycloak instance for server-to-server communication
             realm: Keycloak realm name
             client_id: OAuth2 client ID for web authentication
             client_secret: OAuth2 client secret for web authentication
+            keycloak_external_url: External URL for browser redirects (defaults to keycloak_url)
             m2m_client_id: Optional M2M client ID (defaults to client_id)
             m2m_client_secret: Optional M2M client secret (defaults to client_secret)
         """
         self.keycloak_url = keycloak_url.rstrip('/')
+        self.keycloak_external_url = (keycloak_external_url or keycloak_url).rstrip('/')
         self.realm = realm
         self.client_id = client_id
         self.client_secret = client_secret
         self.m2m_client_id = m2m_client_id or client_id
         self.m2m_client_secret = m2m_client_secret or client_secret
-        
+
         # Cache for JWKS and configuration
         self._jwks_cache: Optional[Dict[str, Any]] = None
         self._jwks_cache_time: float = 0
         self._jwks_cache_ttl: int = 3600  # 1 hour
-        
-        # Keycloak endpoints
+
+        # Keycloak endpoints - use internal URL for server-to-server, external for browser redirects
         self.realm_url = f"{self.keycloak_url}/realms/{realm}"
+        self.external_realm_url = f"{self.keycloak_external_url}/realms/{realm}"
         self.token_url = f"{self.realm_url}/protocol/openid-connect/token"
-        self.auth_url = f"{self.realm_url}/protocol/openid-connect/auth"
+        self.auth_url = f"{self.external_realm_url}/protocol/openid-connect/auth"
         self.userinfo_url = f"{self.realm_url}/protocol/openid-connect/userinfo"
         self.jwks_url = f"{self.realm_url}/protocol/openid-connect/certs"
-        self.logout_url = f"{self.realm_url}/protocol/openid-connect/logout"
+        self.logout_url = f"{self.external_realm_url}/protocol/openid-connect/logout"
         self.config_url = f"{self.realm_url}/.well-known/openid_configuration"
-        
-        logger.debug(f"Initialized Keycloak provider for realm '{realm}' at {keycloak_url}")
+
+        logger.debug(f"Initialized Keycloak provider for realm '{realm}' at {keycloak_url} (external: {self.keycloak_external_url})")
 
 
     def validate_token(
@@ -101,7 +105,7 @@ class KeycloakProvider(AuthProvider):
                 token,
                 signing_key,
                 algorithms=['RS256'],
-                issuer=self.realm_url,
+                issuer=self.external_realm_url,
                 audience=['account', self.client_id, self.m2m_client_id],
                 options={
                     "verify_exp": True,

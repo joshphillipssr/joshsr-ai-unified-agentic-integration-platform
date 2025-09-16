@@ -193,18 +193,27 @@ which python
 # Copy the example environment file
 cp .env.example .env
 
+# Generate a secure SECRET_KEY and set it in the .env file
+SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_urlsafe(64))")
+sed -i "s/# SECRET_KEY=your_secret_key_here/SECRET_KEY=$SECRET_KEY/" .env
+
+# Verify the SECRET_KEY was set correctly
+echo "Generated SECRET_KEY: $SECRET_KEY"
+
 # Open the file for editing
 nano .env
 ```
 
-For now, make these essential changes in the `.env` file:
+The SECRET_KEY has been automatically generated and added to your `.env` file. This key is essential for session security between the auth-server and registry services.
+
+For now, make these additional essential changes in the `.env` file:
 
 ```bash
 # Set authentication provider to Keycloak
 AUTH_PROVIDER=keycloak
 
 # Set a secure admin password (change this!)
-ADMIN_PASSWORD=SecureKeycloakAdmin123!
+KEYCLOAK_ADMIN_PASSWORD=YourSecureAdminPassword123!
 
 # Set Keycloak database password (change this!)
 KEYCLOAK_DB_PASSWORD=SecureKeycloakDB123!
@@ -348,7 +357,7 @@ This step is crucial for the auth-server and other services to authenticate prop
 
 Open a web browser and navigate to:
 ```
-http://your-instance-public-ip:8080
+http://localhost:8080
 ```
 
 You should see the Keycloak login page. You can log in with:
@@ -425,7 +434,7 @@ curl http://localhost:7860/health
 
 1. Open your web browser and navigate to:
    ```
-   http://your-instance-public-ip:7860
+   http://localhost:7860
    ```
 
 2. You should see the MCP Gateway Registry login page
@@ -473,6 +482,34 @@ source ../.oauth-tokens/agent-test-agent-m2m.env
 # Run the intelligent agent demo
 ./mcp_demo.sh "What's the current time and weather?"
 # Expected: Natural language response with time and weather information
+```
+
+### Test with Python MCP Client
+
+Test the MCP Gateway directly using the included Python client:
+
+```bash
+# Source M2M credentials
+source .oauth-tokens/agent-test-agent-m2m.env
+
+# Test basic connectivity
+uv run mcp_client.py ping
+# Expected: {"jsonrpc":"2.0","id":2,"result":{}}
+
+# List available tools
+uv run mcp_client.py list
+# Expected: JSON response with available tools from all registered services
+
+# Use intelligent tool finder to discover tools
+uv run mcp_client.py call --tool intelligent_tool_finder --args '{"natural_language_query":"get current time in New York"}'
+# Expected: JSON response with recommended tools
+
+# Call a specific tool directly (using different gateway URL)
+uv run mcp_client.py --url http://localhost/currenttime/mcp call --tool current_time_by_timezone --args '{"tz_name":"America/New_York"}'
+# Expected: Current time in New York timezone
+
+# Get help for more examples
+uv run mcp_client.py --help
 ```
 
 ---
@@ -586,6 +623,74 @@ docker-compose logs auth-server | tail -50
   --group mcp-servers-unrestricted
 ```
 
+#### Login Redirects Back to Login Page
+This usually indicates a session cookie issue between auth-server and registry:
+
+```bash
+# Check for SECRET_KEY mismatch
+docker-compose logs auth-server | grep "SECRET_KEY"
+docker-compose logs registry | grep -E "(session|cookie|Invalid)"
+
+# If you see "No SECRET_KEY environment variable found", regenerate and restart:
+SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_urlsafe(64))")
+sed -i "s/SECRET_KEY=.*/SECRET_KEY=$SECRET_KEY/" .env
+
+# Recreate containers to pick up new SECRET_KEY
+docker-compose stop auth-server registry
+docker-compose rm -f auth-server registry
+docker-compose up -d auth-server registry
+
+# Test login again - should work now
+```
+
+#### Configure Token Lifetime
+By default, Keycloak generates tokens with a 5-minute (300 seconds) lifetime. To change this for longer-lived tokens:
+
+**Method 1: Via Keycloak Admin Console**
+1. Go to `http://localhost:8080/admin` (or your Keycloak URL)
+2. Login with admin credentials
+3. Select the `mcp-gateway` realm
+4. Go to **Realm Settings** → **Tokens** → **Access Token Lifespan**
+5. Change from `5 Minutes` to desired value (e.g., `1 Hour`)
+6. Click **Save**
+
+**Method 2: Via Keycloak Admin API**
+```bash
+# Get admin token
+ADMIN_TOKEN=$(curl -s -X POST "http://localhost:8080/realms/master/protocol/openid-connect/token" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=password&client_id=admin-cli&username=admin&password=YourSecureAdminPassword123!" | \
+  jq -r '.access_token')
+
+# Update access token lifespan to 1 hour (3600 seconds)
+curl -X PUT "http://localhost:8080/admin/realms/mcp-gateway" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"accessTokenLifespan": 3600}'
+
+# Verify the change
+curl -X GET "http://localhost:8080/admin/realms/mcp-gateway" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" | jq '.accessTokenLifespan'
+```
+
+**Note**: New tokens generated after this change will use the updated lifetime. Existing tokens retain their original expiration time.
+
+#### OAuth2 Callback Failed
+If you see "oauth2_callback_failed" error:
+
+```bash
+# Check Keycloak external URL configuration
+docker-compose exec -T auth-server env | grep KEYCLOAK_EXTERNAL_URL
+# Should show: KEYCLOAK_EXTERNAL_URL=http://localhost:8080
+
+# If missing, add to .env file:
+echo "KEYCLOAK_EXTERNAL_URL=http://localhost:8080" >> .env
+docker-compose restart auth-server
+
+# Check auth-server can reach Keycloak internally
+docker-compose exec auth-server curl -f http://keycloak:8080/health/ready
+```
+
 #### Registry Not Loading
 ```bash
 # Check registry logs
@@ -640,7 +745,62 @@ docker-compose up -d keycloak-db keycloak
 
 ---
 
-## 10. Next Steps
+## 10. Custom HTTPS Domain Configuration
+
+If you're running this setup with a custom HTTPS domain (e.g., `https://mcpgateway.mycorp.com`) instead of localhost, you'll need to update the following parameters in your `.env` file:
+
+### Parameters to Update for Custom HTTPS Domain
+
+```bash
+# Update these parameters in your .env file:
+
+# 1. Registry URL - Replace with your custom domain
+REGISTRY_URL=https://mcpgateway.mycorp.com
+
+# 2. Auth Server External URL - Replace with your custom domain
+AUTH_SERVER_EXTERNAL_URL=https://mcpgateway.mycorp.com
+
+# 3. Keycloak External URL - Replace with your custom domain
+KEYCLOAK_EXTERNAL_URL=https://mcpgateway.mycorp.com
+
+# 4. Keycloak Admin URL - Replace with your custom domain
+KEYCLOAK_ADMIN_URL=https://mcpgateway.mycorp.com
+```
+
+### Parameters to KEEP UNCHANGED
+
+These parameters should remain as localhost/Docker network addresses for internal communication:
+
+```bash
+# DO NOT CHANGE - These are for internal Docker network communication:
+AUTH_SERVER_URL=http://auth-server:8888
+KEYCLOAK_URL=http://keycloak:8080
+```
+
+### Additional Considerations for Custom Domains
+
+1. **SSL/TLS Certificates**: Ensure you have valid SSL certificates for your domain
+2. **Firewall Rules**: Update security groups/firewall rules for your custom domain
+3. **DNS Configuration**: Ensure your domain points to your server's public IP address
+
+### Testing Custom Domain Setup
+
+After updating your `.env` file with custom domain values:
+
+```bash
+# Restart services to pick up new configuration
+docker-compose restart auth-server registry
+
+# Test the custom domain
+curl -f https://mcpgateway.mycorp.com/health
+
+# Test Keycloak access
+curl -f https://mcpgateway.mycorp.com/realms/mcp-gateway
+```
+
+---
+
+## 11. Next Steps
 
 ### Secure Your Installation
 
