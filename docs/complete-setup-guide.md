@@ -494,36 +494,39 @@ cd ~/workspace/mcp-gateway-registry/tests
 # Activate the virtual environment if not already active
 source ../.venv/bin/activate
 
-# Make test scripts executable
-chmod +x mcp_cmds.sh mcp_demo.sh
-
-# Option 1: Source the agent credentials from the saved file
+# Source the agent credentials from the saved file
 source ../.oauth-tokens/agent-test-agent-m2m.env
 
 # Option 2: Or manually set the environment variables
 # export CLIENT_ID="agent-test-agent-m2m"
 # export CLIENT_SECRET="<get-from-.oauth-tokens/keycloak-client-secrets.txt>"
-# export GATEWAY_URL="http://localhost:8000"
+# export KEYCLOAK_URL="http://localhost:8080"
+# export KEYCLOAK_REALM="mcp-gateway"
 
 # Test basic connectivity
-./mcp_cmds.sh ping
+python ../mcp_client.py ping
 # Expected: "pong"
 
 # List available tools
-./mcp_cmds.sh list
+python ../mcp_client.py list
 # Expected: List of available MCP tools
 
-# Test calling a simple tool
-./mcp_cmds.sh call mcp-time get-time
+# Test calling a simple tool to get current time
+python ../mcp_client.py call --tool current_time_by_timezone --args '{"tz_name":"America/New_York"}'
 # Expected: Current time in JSON format
 ```
 
 ### Test Intelligent Agent Demo
 
 ```bash
-# Run the intelligent agent demo
-./mcp_demo.sh "What's the current time and weather?"
-# Expected: Natural language response with time and weather information
+# Use the intelligent tool finder to discover tools with natural language
+python ../mcp_client.py call --tool intelligent_tool_finder --args '{"natural_language_query":"What is the current time?"}'
+# Expected: Tool discovery results with time-related tools
+
+# You can also run a full agent with the comprehensive agent script
+cd ../agents
+python agent.py --prompt "What's the current time in New York?" --interactive
+# Expected: Natural language response with current time
 ```
 
 ### Test with Python MCP Client
