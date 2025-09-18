@@ -1,8 +1,8 @@
-# Architectural Comparison: Reverse Proxy vs Tools Gateway
+# Core Architectural Decision: Reverse Proxy vs Application-Layer Gateway
 
 ## Executive Summary
 
-This document compares the current **reverse proxy architecture** with an alternative **tools gateway architecture** from multiple perspectives: performance, security, long-term maintainability, scaling, and operational complexity.
+This document discusses two potential architectures that were considered during the design phase of this solution: a **reverse proxy architecture** and an alternative **tools gateway architecture**. We analyze both approaches from multiple perspectives: performance, security, long-term maintainability, scaling, and operational complexity, and explain why the reverse proxy approach was selected.
 
 The reverse proxy approach provides better performance, protocol independence, and allows continued Python development while leveraging Nginx for message routing. The tools gateway approach offers better developer experience and enterprise integration but requires Go/Rust implementation for enterprise performance requirements.
 
