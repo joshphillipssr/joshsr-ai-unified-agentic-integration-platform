@@ -146,7 +146,7 @@ The reverse proxy architecture provides protocol independence:
 ### Tools Gateway Implementation Challenges
 A tools gateway requires:
 - **Language Choice**: Python insufficient for performance; requires Go/Rust implementation
-- **MCP Client Library**: Must embed full MCP client for backend communication
+- **MCP Client Library**: Must embed full MCP client for backend communication and keep client updated with evolving MCP specification changes
 - **Protocol Parsing**: Must understand and parse all MCP message types
 - **Connection Handling**: Complex connection lifecycle management
 - **Error Translation**: Convert backend MCP errors to client-readable format
