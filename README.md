@@ -250,6 +250,8 @@ flowchart TB
 
 ## Quick Start
 
+> **📱 Running on macOS?** See our [macOS Setup Guide](docs/macos-setup-guide.md) for platform-specific instructions and optimizations.
+
 ### Option A: Pre-built Images (Instant Setup)
 
 Get running in under 2 minutes with pre-built containers:
