@@ -82,10 +82,10 @@ The **MCP Gateway & Registry** is an enterprise-ready platform that centralizes 
 
 ## What's New
 
+- **🔐 Keycloak Identity Provider Integration** - Enterprise-grade authentication with individual AI agent audit trails, group-based authorization, and production-ready service account management. [Learn more](docs/keycloak-integration.md)
 - **Real-Time Metrics & Observability** - Comprehensive monitoring via Grafana dashboards with metrics stored in SQLite and exposed through OpenTelemetry (OTEL). Track server health, tool usage, authentication events, and performance metrics in real-time for complete visibility into your MCP infrastructure. [Observability Guide](docs/OBSERVABILITY.md)
 - **Service Management Utility** - New comprehensive script for server lifecycle management with automated verification and testing. [Learn more](docs/service-management.md)
 - **Tag-Based Tool Filtering** - Enhanced intelligent_tool_finder now supports filtering tools by server tags for precise categorical discovery alongside semantic search
-- **🔐 Keycloak Identity Provider Integration** - Enterprise-grade authentication with individual AI agent audit trails, group-based authorization, and production-ready service account management. [Learn more](docs/keycloak-integration.md)
 - **Amazon Bedrock AgentCore Integration** - Direct access to AWS services through managed MCP endpoints
 - **Three-Legged OAuth (3LO) Support** - External service integration (Atlassian, Google, GitHub)
 - **JWT Token Vending Service** - Self-service token generation for automation
