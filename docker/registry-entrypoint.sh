@@ -28,25 +28,37 @@ echo "ADMIN_USER=${ADMIN_USER_VALUE}" >> "$REGISTRY_ENV_FILE"
 echo "ADMIN_PASSWORD=${ADMIN_PASSWORD}" >> "$REGISTRY_ENV_FILE"
 echo "Registry .env created."
 
-# --- SSL Certificate Generation ---
+# --- SSL Certificate Check ---
 SSL_CERT_DIR="/etc/ssl/certs"
 SSL_KEY_DIR="/etc/ssl/private"
 SSL_CERT_PATH="$SSL_CERT_DIR/fullchain.pem"
 SSL_KEY_PATH="$SSL_KEY_DIR/privkey.pem"
 
-curl -k  https://raw.githubusercontent.com/openssl/openssl/master/apps/openssl.cnf -o  /usr/lib/ssl/openssl.cnf
-
 echo "Checking for SSL certificates..."
 if [ ! -f "$SSL_CERT_PATH" ] || [ ! -f "$SSL_KEY_PATH" ]; then
-    echo "Generating self-signed SSL certificate for Nginx..."
-    mkdir -p "$SSL_CERT_DIR" "$SSL_KEY_DIR"
-    openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-        -keyout "$SSL_KEY_PATH" \
-        -out "$SSL_CERT_PATH" \
-        -subj "/C=US/ST=State/L=City/O=Organization/OU=OrgUnit/CN=localhost"
-    echo "SSL certificate generated."
+    echo "=========================================="
+    echo "SSL certificates not found - HTTPS will not be available"
+    echo "=========================================="
+    echo ""
+    echo "To enable HTTPS, mount your certificates to:"
+    echo "  - $SSL_CERT_PATH"
+    echo "  - $SSL_KEY_PATH"
+    echo ""
+    echo "Example for docker-compose.yml:"
+    echo "  volumes:"
+    echo "    - /path/to/fullchain.pem:/etc/ssl/certs/fullchain.pem:ro"
+    echo "    - /path/to/privkey.pem:/etc/ssl/private/privkey.pem:ro"
+    echo ""
+    echo "HTTP server will be available on port 80"
+    echo "=========================================="
 else
-    echo "SSL certificates already exist, skipping generation."
+    echo "=========================================="
+    echo "SSL certificates found - HTTPS enabled"
+    echo "=========================================="
+    echo "Certificate: $SSL_CERT_PATH"
+    echo "Private key: $SSL_KEY_PATH"
+    echo "HTTPS server will be available on port 443"
+    echo "=========================================="
 fi
 
 # --- Lua Module Setup ---
