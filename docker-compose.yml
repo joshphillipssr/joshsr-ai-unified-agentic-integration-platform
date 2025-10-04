@@ -29,9 +29,12 @@ services:
       - AUTH_PROVIDER=${AUTH_PROVIDER:-cognito}
       - KEYCLOAK_ENABLED=${KEYCLOAK_ENABLED:-false}
       - KEYCLOAK_URL=${KEYCLOAK_URL:-http://keycloak:8080}
+      - KEYCLOAK_ADMIN_URL=${KEYCLOAK_ADMIN_URL:-http://keycloak:8080}
       - KEYCLOAK_REALM=${KEYCLOAK_REALM:-mcp-gateway}
       - KEYCLOAK_CLIENT_ID=${KEYCLOAK_CLIENT_ID:-mcp-gateway-web}
       - KEYCLOAK_CLIENT_SECRET=${KEYCLOAK_CLIENT_SECRET}
+      - KEYCLOAK_ADMIN=${KEYCLOAK_ADMIN:-admin}
+      - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD}
     ports:
       - "80:80"
       - "443:443"
