@@ -535,4 +535,4 @@ If you get a 401 error:
 
 - [Amazon Bedrock AgentCore Samples](https://github.com/awslabs/amazon-bedrock-agentcore-samples)
 - [MCP Gateway Registry Documentation](../README.md)
-- [Service Management Guide](../cli/README.md)
+- [Service Management Guide](service-management.md)
