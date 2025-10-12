@@ -14,6 +14,7 @@ from urllib.parse import unquote
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from ..auth.dependencies import nginx_proxied_auth
+from ..constants import REGISTRY_CONSTANTS
 from ..health.service import health_service
 from ..schemas.anthropic_schema import ErrorResponse, ServerList, ServerResponse
 from ..services.server_service import server_service
@@ -103,7 +104,7 @@ async def list_servers(
 
 
 @router.get(
-    "/servers/{serverName}/versions",
+    "/servers/{serverName:path}/versions",
     response_model=ServerList,
     summary="List server versions",
     description="Returns all available versions for a specific MCP server.",
@@ -136,29 +137,40 @@ async def list_server_versions(
 
     # Extract path from reverse-DNS name
     # Expected format: "io.mcpgateway/example-server"
-    if not decoded_name.startswith("io.mcpgateway/"):
+    namespace = REGISTRY_CONSTANTS.ANTHROPIC_SERVER_NAMESPACE
+    expected_prefix = f"{namespace}/"
+
+    if not decoded_name.startswith(expected_prefix):
         logger.warning(f"Invalid server name format: {decoded_name}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Server not found"
         )
 
-    path = "/" + decoded_name.replace("io.mcpgateway/", "")
+    # Construct initial path for lookup
+    lookup_path = "/" + decoded_name.replace(expected_prefix, "")
 
-    # Get server info
-    server_info = server_service.get_server_info(path)
+    # Get server info - try with and without trailing slash
+    server_info = server_service.get_server_info(lookup_path)
     if not server_info:
-        logger.warning(f"Server not found: {path}")
+        # Try with trailing slash
+        server_info = server_service.get_server_info(lookup_path + "/")
+
+    if not server_info:
+        logger.warning(f"Server not found: {lookup_path}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Server not found"
         )
 
-    # Check user permissions
+    # Use the actual path from server_info (has correct trailing slash)
+    path = server_info.get("path", lookup_path)
+
+    # Check user permissions - use accessible_servers (MCP scopes) not accessible_services (UI scopes)
+    accessible_servers = user_context.get("accessible_servers", [])
     server_name = server_info["server_name"]
-    accessible_services = user_context.get("accessible_services", [])
 
     if not user_context["is_admin"]:
         # Check if user can access this server
-        if "all" not in accessible_services and server_name not in accessible_services:
+        if server_name not in accessible_servers:
             logger.warning(
                 f"User '{user_context['username']}' attempted to access unauthorized server: {server_name}"
             )
@@ -166,7 +178,7 @@ async def list_server_versions(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Server not found"
             )
 
-    # Add health and status info
+    # Add health and status info using the correct path
     health_data = health_service._get_service_health_data(path)
 
     server_info_with_status = server_info.copy()
@@ -183,7 +195,7 @@ async def list_server_versions(
 
 
 @router.get(
-    "/servers/{serverName}/versions/{version}",
+    "/servers/{serverName:path}/versions/{version}",
     response_model=ServerResponse,
     summary="Get server version details",
     description="Returns detailed information about a specific version of an MCP server. Use 'latest' to get the most recent version.",
@@ -219,28 +231,39 @@ async def get_server_version(
     )
 
     # Extract path from reverse-DNS name
-    if not decoded_name.startswith("io.mcpgateway/"):
+    namespace = REGISTRY_CONSTANTS.ANTHROPIC_SERVER_NAMESPACE
+    expected_prefix = f"{namespace}/"
+
+    if not decoded_name.startswith(expected_prefix):
         logger.warning(f"Invalid server name format: {decoded_name}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Server not found"
         )
 
-    path = "/" + decoded_name.replace("io.mcpgateway/", "")
+    # Construct initial path for lookup
+    lookup_path = "/" + decoded_name.replace(expected_prefix, "")
 
-    # Get server info
-    server_info = server_service.get_server_info(path)
+    # Get server info - try with and without trailing slash
+    server_info = server_service.get_server_info(lookup_path)
     if not server_info:
-        logger.warning(f"Server not found: {path}")
+        # Try with trailing slash
+        server_info = server_service.get_server_info(lookup_path + "/")
+
+    if not server_info:
+        logger.warning(f"Server not found: {lookup_path}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Server not found"
         )
 
-    # Check user permissions (same as versions endpoint)
+    # Use the actual path from server_info (has correct trailing slash)
+    path = server_info.get("path", lookup_path)
+
+    # Check user permissions - use accessible_servers (MCP scopes) not accessible_services (UI scopes)
+    accessible_servers = user_context.get("accessible_servers", [])
     server_name = server_info["server_name"]
-    accessible_services = user_context.get("accessible_services", [])
 
     if not user_context["is_admin"]:
-        if "all" not in accessible_services and server_name not in accessible_services:
+        if server_name not in accessible_servers:
             logger.warning(
                 f"User '{user_context['username']}' attempted to access unauthorized server: {server_name}"
             )

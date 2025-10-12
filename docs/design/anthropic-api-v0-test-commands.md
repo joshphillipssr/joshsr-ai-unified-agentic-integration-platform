@@ -34,7 +34,7 @@ The ingress token expires regularly, so you must generate a new one before testi
 
 ```bash
 # Step 1: Generate fresh Keycloak credentials
-./generate_creds.sh
+credentials-provider/generate_creds.sh
 
 # Step 2: Load the token from ingress.json
 export TOKEN=$(jq -r '.access_token' .oauth-tokens/ingress.json)
@@ -44,29 +44,18 @@ echo "Token loaded: ${TOKEN:0:50}..."
 ```
 
 **Important Notes**:
-- Tokens expire after a few hours - if you get authentication errors, regenerate with `./generate_creds.sh`
+- Tokens expire after 5 minutes - if you get authentication errors, regenerate with `./credentials-provider/generate_creds.sh`
 - The `generate_creds.sh` script creates a new M2M token in `.oauth-tokens/ingress.json`
 - This token has full access to all MCP servers (unrestricted + restricted scopes)
+- **Other bot tokens** (like `bot-008`, `agent-finance-bot`) may have limited or no access to MCP servers depending on their Keycloak configuration. Use `ingress.json` for testing.
 
 ### 3. Base URL
 
 The v0 API is accessible at:
 
-- **Via Nginx**: `http://localhost/v0` or `https://localhost/v0`
-- **Via Registry directly**: `http://localhost:7860/v0`
+- **API Endpoint**: `http://localhost/v0` or `https://localhost/v0`
 
-**⚠️ IMPORTANT - Current Limitation**:
-
-The v0 API endpoints are currently implemented but **JWT Bearer token authentication is not yet fully integrated**. The authentication system currently only supports session cookie-based auth.
-
-**To enable Bearer token authentication, one of these approaches needs to be implemented**:
-- **Option A**: Update nginx to validate JWT tokens with Keycloak and pass user context headers
-- **Option B**: Add JWT validation directly in FastAPI (`enhanced_auth` dependency)
-- **Option C**: Create a Bearer token auth dependency that validates against Keycloak
-
-**Workaround for Testing**: Until JWT auth is fully integrated, test the v0 API using cookie-based authentication after logging in via the web UI.
-
-For these test commands, we assume JWT Bearer token auth will be implemented. Replace `http://localhost/v0` with the appropriate endpoint once JWT validation is added.
+**Authentication**: All endpoints require JWT Bearer token authentication via the `Authorization` header.
 
 ## Test Commands
 
@@ -76,7 +65,7 @@ For these test commands, we assume JWT Bearer token auth will be implemented. Re
 
 ```bash
 curl -X GET "http://localhost/v0/servers" \
-  -H "X-Authorization: Bearer $TOKEN" \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" | jq
 ```
 
@@ -179,10 +168,10 @@ curl -X GET "http://localhost/v0/servers/io.mcpgateway%2Fatlassian/versions" \
 
 ### Test 6: List Versions for Different Server
 
-**Description**: Try with a different server (e.g., current-time)
+**Description**: Try with a different server (e.g., currenttime)
 
 ```bash
-curl -X GET "http://localhost/v0/servers/io.mcpgateway%2Fcurrent-time/versions" \
+curl -X GET "http://localhost/v0/servers/io.mcpgateway%2Fcurrenttime/versions" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" | jq
 ```
@@ -453,6 +442,71 @@ curl -s -X GET "http://localhost/v0/servers/io.mcpgateway%2Fatlassian/versions/l
   }'
 ```
 
+### Test 21: Permission-Based Filtering (Restricted vs Full Access)
+
+**Description**: Verify that users with restricted permissions only see authorized servers
+
+**Setup**: Create restricted bot account if it doesn't exist
+```bash
+# Check if test-restricted-bot already exists
+if [ ! -f .oauth-tokens/test-restricted-bot.json ]; then
+  echo "Creating test-restricted-bot..."
+
+  # Load Keycloak admin password from .env
+  export $(grep KEYCLOAK_ADMIN_PASSWORD .env | xargs)
+
+  # Create restricted bot (only has access to restricted servers)
+  ./cli/user_mgmt.sh create-m2m \
+    --name test-restricted-bot \
+    --groups 'mcp-servers-restricted'
+else
+  echo "test-restricted-bot already exists, skipping creation"
+fi
+```
+
+**Test Commands**:
+```bash
+# Step 1: Refresh the restricted bot's token
+./scripts/refresh_m2m_token.sh test-restricted-bot
+
+# Step 2: Load the restricted bot's token
+export TOKEN_RESTRICTED=$(jq -r '.access_token' .oauth-tokens/test-restricted-bot-token.json)
+
+# Step 3: Test v0 API with restricted token - should see only ~3 servers
+echo "=== Testing with RESTRICTED token ==="
+curl -s "http://localhost/v0/servers" \
+  -H "Authorization: Bearer $TOKEN_RESTRICTED" | jq '{
+    total_servers: (.servers | length),
+    server_names: [.servers[].server.name]
+  }'
+
+# Step 4: Load the full access token for comparison
+export TOKEN_FULL=$(jq -r '.access_token' .oauth-tokens/ingress.json)
+
+# Step 5: Test v0 API with full access token - should see all servers
+echo ""
+echo "=== Testing with FULL ACCESS token ==="
+curl -s "http://localhost/v0/servers" \
+  -H "Authorization: Bearer $TOKEN_FULL" | jq '{
+    total_servers: (.servers | length),
+    server_names: [.servers[].server.name]
+  }'
+
+# Step 6: Compare the difference
+echo ""
+echo "=== COMPARISON ==="
+echo "Restricted bot sees: $(curl -s "http://localhost/v0/servers" -H "Authorization: Bearer $TOKEN_RESTRICTED" | jq '.servers | length') servers"
+echo "Full access sees: $(curl -s "http://localhost/v0/servers" -H "Authorization: Bearer $TOKEN_FULL" | jq '.servers | length') servers"
+```
+
+**Expected Results**:
+- **Restricted bot** (`mcp-servers-restricted` group): ~3 servers (currenttime, auth_server, mcpgw)
+- **Full access** (`ingress.json` token): ~7+ servers (all servers including atlassian, fininfo, sre-gateway)
+
+This demonstrates that the v0 API correctly enforces permission-based filtering based on Keycloak groups and MCP scopes!
+
+---
+
 ## Verification Checklist
 
 After running the tests, verify:
@@ -462,7 +516,8 @@ After running the tests, verify:
 - [ ] Server name format follows `io.mcpgateway/{path}` convention
 - [ ] All responses conform to Anthropic schema
 - [ ] Authentication is required for all endpoints
-- [ ] Non-admin users only see authorized servers
+- [ ] Non-admin users only see authorized servers (Test 21)
+- [ ] Restricted users see only restricted servers (Test 21)
 - [ ] Error responses include proper status codes (404, 401)
 - [ ] Version "latest" and "1.0.0" both work
 - [ ] Transport configuration includes correct proxy URLs

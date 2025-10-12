@@ -7,6 +7,7 @@ This bridges our internal data model with the external Anthropic API format.
 import logging
 from typing import Any, Dict, List, Optional
 
+from ..constants import REGISTRY_CONSTANTS
 from ..schemas.anthropic_schema import (
     Package,
     PaginationMetadata,
@@ -96,7 +97,8 @@ def _create_server_name(server_info: Dict[str, Any]) -> str:
     clean_path = path.strip("/")
 
     # Use our domain as prefix
-    return f"io.mcpgateway/{clean_path}"
+    namespace = REGISTRY_CONSTANTS.ANTHROPIC_SERVER_NAMESPACE
+    return f"{namespace}/{clean_path}"
 
 
 def transform_to_server_detail(server_info: Dict[str, Any]) -> ServerDetail:
@@ -136,8 +138,9 @@ def transform_to_server_detail(server_info: Dict[str, Any]) -> ServerDetail:
     )
 
     # Build metadata
+    namespace = REGISTRY_CONSTANTS.ANTHROPIC_SERVER_NAMESPACE
     meta = {
-        "io.mcpgateway/internal": {
+        f"{namespace}/internal": {
             "path": server_info.get("path"),
             "is_enabled": server_info.get("is_enabled", False),
             "health_status": server_info.get("health_status", "unknown"),
@@ -177,8 +180,9 @@ def transform_to_server_response(
 
     registry_meta = None
     if include_registry_meta:
+        namespace = REGISTRY_CONSTANTS.ANTHROPIC_SERVER_NAMESPACE
         registry_meta = {
-            "io.mcpgateway/registry": {
+            f"{namespace}/registry": {
                 "last_checked": server_info.get("last_checked_iso"),
                 "health_status": server_info.get("health_status", "unknown"),
             }
