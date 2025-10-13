@@ -231,7 +231,7 @@ async def _get_tools_streamable_http(base_url: str, server_info: dict = None) ->
         if not mcp_url.endswith('/'):
             mcp_url += '/'
         
-        # Handle Strata servers - add required query parameter
+        # Handle streamable-http and sse servers imported from anthropinc by adding required query parameter
         if server_info and 'tags' in server_info and 'anthropic-registry' in server_info.get('tags', []):
             if '?' not in mcp_url:
                 mcp_url += '?instance_id=default'
@@ -415,7 +415,6 @@ async def get_tools_from_server_with_server_info(base_url: str, server_info: dic
         A list of tool detail dictionaries (keys: name, description, schema),
         or None if connection/retrieval fails.
     """
-    logger.info(f"DEBUG: get_tools_from_server_with_server_info called with base_url: {base_url}, server_info: {server_info}")
     
     if not base_url:
         logger.error("MCP Check Error: Base URL is empty.")
@@ -423,7 +422,6 @@ async def get_tools_from_server_with_server_info(base_url: str, server_info: dic
 
     # Use transport-aware detection
     transport = await detect_server_transport_aware(base_url, server_info)
-    logger.info(f"DEBUG: Detected transport: {transport}")
     
     logger.info(f"Attempting to connect to MCP server at {base_url} using {transport} transport (server-info aware)...")
     
