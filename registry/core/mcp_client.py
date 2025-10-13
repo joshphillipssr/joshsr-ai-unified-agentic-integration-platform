@@ -232,11 +232,11 @@ async def _get_tools_streamable_http(base_url: str, server_info: dict = None) ->
             mcp_url += '/'
         
         # Handle Strata servers - add required query parameter
-        if 'strata' in mcp_url.lower():
+        if server_info and 'tags' in server_info and 'anthropic-registry' in server_info.get('tags', []):
             if '?' not in mcp_url:
-                mcp_url += '?strata_id=default'
-            elif 'strata_id=' not in mcp_url and 'instance_id=' not in mcp_url:
-                mcp_url += '&strata_id=default'
+                mcp_url += '?instance_id=default'
+            elif 'instance_id=' not in mcp_url:
+                mcp_url += '&instance_id=default'
         else:
             logger.info(f"DEBUG: Not a Strata server, URL unchanged: {mcp_url}")
         
