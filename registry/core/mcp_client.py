@@ -231,15 +231,27 @@ async def _get_tools_streamable_http(base_url: str, server_info: dict = None) ->
         if not mcp_url.endswith('/'):
             mcp_url += '/'
         
+        # Handle Strata servers - add required query parameter
+        if 'strata' in mcp_url.lower():
+            if '?' not in mcp_url:
+                mcp_url += '?strata_id=default'
+            elif 'strata_id=' not in mcp_url and 'instance_id=' not in mcp_url:
+                mcp_url += '&strata_id=default'
+        else:
+            logger.info(f"DEBUG: Not a Strata server, URL unchanged: {mcp_url}")
+        
+        logger.info(f"DEBUG: About to connect to: {mcp_url}")
         try:
             async with streamablehttp_client(url=mcp_url, headers=headers) as (read, write, get_session_id):
                 async with ClientSession(read, write) as session:
                     await asyncio.wait_for(session.initialize(), timeout=10.0)
                     tools_response = await asyncio.wait_for(session.list_tools(), timeout=15.0)
                     
-                    return _extract_tool_details(tools_response)
+                    result = _extract_tool_details(tools_response)
+                    return result
         except Exception as e:
             logger.error(f"MCP Check Error: Streamable-HTTP connection failed to {base_url}: {e}")
+            import traceback
             return None
     else:
         # Try with /mcp suffix first, then without if it fails
@@ -403,12 +415,15 @@ async def get_tools_from_server_with_server_info(base_url: str, server_info: dic
         A list of tool detail dictionaries (keys: name, description, schema),
         or None if connection/retrieval fails.
     """
+    logger.info(f"DEBUG: get_tools_from_server_with_server_info called with base_url: {base_url}, server_info: {server_info}")
+    
     if not base_url:
         logger.error("MCP Check Error: Base URL is empty.")
         return None
 
     # Use transport-aware detection
     transport = await detect_server_transport_aware(base_url, server_info)
+    logger.info(f"DEBUG: Detected transport: {transport}")
     
     logger.info(f"Attempting to connect to MCP server at {base_url} using {transport} transport (server-info aware)...")
     
