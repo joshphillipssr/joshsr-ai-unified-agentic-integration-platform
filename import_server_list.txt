@@ -3,5 +3,5 @@
 
 # Test with a few real servers from the registry
 ai.aliengiraffe/spotdb
-#ai.mcpcap/mcpcap
-#ai.shawndurrani/mcp-merchant
+ai.klavis/strata
+ai.mcpcap/mcpcap

@@ -264,11 +264,15 @@ with open('$anthropic_file') as f:
     
 result = transform_anthropic_to_gateway(data, $current_port)
 result['path'] = '/$safe_path'
-result['proxy_pass_url'] = '$proxy_url'
-result['supported_transports'] = ['$transport_type']
+
+# Store remote URL in headers for health check use
+remote_url = result.get('remote_url')
+if remote_url and result.get('supported_transports', [''])[0] in ['streamable-http', 'sse']:
+    # Add remote URL as a special header for health checks
+    result['headers'] = [{'X-Health-Check-URL': remote_url}]
 
 # Remove unsupported fields for register_service tool
-unsupported_fields = ['repository_url', 'website_url', 'package_npm']
+unsupported_fields = ['repository_url', 'website_url', 'package_npm', 'remote_url']
 for field in unsupported_fields:
     result.pop(field, None)
 

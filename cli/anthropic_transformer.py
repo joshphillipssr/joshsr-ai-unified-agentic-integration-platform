@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import json
 
 def transform_anthropic_to_gateway(anthropic_response, base_port=8100):
     """Transform Anthropic ServerResponse to Gateway Registry Config format."""
@@ -23,26 +24,42 @@ def transform_anthropic_to_gateway(anthropic_response, base_port=8100):
         npm_pkg = next((pkg["identifier"] for pkg in packages 
                        if pkg.get("registryType") == "npm"), None)
     
+    # Handle remotes for streamable-http/SSE servers
+    remotes = server.get("remotes", [])
+    remote_url = None
+    transport_type = "stdio"  # default
+    
+    if remotes:
+        # Use first remote URL
+        remote = remotes[0]
+        remote_url = remote.get("url")
+        transport_type = remote.get("type", "streamable-http")
+    
     # Generate safe path
     safe_path = name.replace("/", "-")
     
+    # Use remote URL if available, otherwise localhost
+    proxy_url = remote_url if remote_url else f"http://localhost:{base_port}/"
+    
+    # Build headers list for remote URL and query params
+    headers = []
+    if remote_url:
+        headers.append({"X-Health-Check-URL": remote_url})
     return {
         "server_name": name,
         "description": server.get("description", "MCP server imported from Anthropic Registry"),
         "path": f"/{safe_path}",
-        "proxy_pass_url": f"http://localhost:{base_port}/",
+        "proxy_pass_url": proxy_url,
         "auth_provider": "keycloak",
         "auth_type": "oauth", 
-        "supported_transports": ["stdio"],
+        "supported_transports": [transport_type],
         "tags": tags,
-        "headers": [],
+        "headers": headers,
         "num_tools": 0,
         "num_stars": 0,
         "is_python": is_python,
         "license": "MIT",
-        "repository_url": server.get("repository", {}).get("url", ""),
-        "website_url": server.get("websiteUrl", ""),
-        "package_npm": npm_pkg,
+        "remote_url": remote_url,  # Store original remote URL for health checks
         "tool_list": []
     }
 
