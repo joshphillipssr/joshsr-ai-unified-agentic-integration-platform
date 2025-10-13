@@ -325,7 +325,7 @@ The API may implement rate limiting. Check response headers for rate limit infor
 
 For issues with the Anthropic Registry API v0 implementation:
 
-1. Check the [main documentation](./registry_api.md) for general API information
+1. **Official Anthropic Registry API Specification**: [View the interactive API documentation](https://elements-demo.stoplight.io/?spec=https://raw.githubusercontent.com/modelcontextprotocol/registry/refs/heads/main/docs/reference/api/openapi.yaml) - This is the official Anthropic MCP Registry REST API v0 specification that this implementation follows
 2. Review the [authentication guide](./auth.md) for authentication setup
 3. Examine the test script at `cli/test_anthropic_api.py` for working examples
 4. Check server logs for detailed error information
