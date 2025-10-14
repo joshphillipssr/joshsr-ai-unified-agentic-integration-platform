@@ -369,16 +369,9 @@ Comprehensive real-time metrics and monitoring through Grafana dashboards with d
 - **Three-Legged OAuth (3LO)** - For external service integration (Atlassian, Google, GitHub)
 - **Session-Based** - For human developers using AI coding assistants and web interface
 
-**Supported Identity Providers:**
-- **[Keycloak](https://www.keycloak.org/)** - Enterprise-grade open-source identity and access management with individual agent audit trails
-- **Amazon Cognito** - Amazon managed identity service
-- Any OAuth 2.0 compatible provider
+**Supported Identity Providers:** Keycloak, Amazon Cognito, and any OAuth 2.0 compatible provider. [Learn more](docs/auth.md)
 
-**Fine-Grained Permissions:**
-- Tool-level access control
-- Method-level restrictions  
-- Team-based permissions
-- Temporary access grants
+**Fine-Grained Permissions:** Tool-level, method-level, team-based, and temporary access controls. [Learn more](docs/scopes.md)
 
 ### Production Deployment
 
