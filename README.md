@@ -360,6 +360,18 @@ Comprehensive real-time metrics and monitoring through Grafana dashboards with d
 </tr>
 </table>
 
+### Anthropic MCP Registry Integration
+
+Seamlessly integrate with Anthropic's official MCP Registry to import and access curated MCP servers through your gateway:
+
+- **Import Servers**: Select and import desired servers from Anthropic's registry with a single command
+- **Unified Access**: Access imported servers through your gateway with centralized authentication and governance
+- **API Compatibility**: Full support for Anthropic's Registry REST API v0 specification - point your Anthropic API clients to this registry to discover available servers
+
+<img src="docs/img/registry_w_a.png" alt="Anthropic Registry Integration" />
+<p><em>Import and access curated MCP servers from Anthropic's official registry</em></p>
+
+[Import Guide](docs/anthropic-registry-import.md) | [Registry API Documentation](docs/anthropic_registry_api.md)
 
 ### Authentication & Authorization
 
