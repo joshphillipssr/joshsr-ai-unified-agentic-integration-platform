@@ -1,4 +1,5 @@
 """
+
 Anthropic MCP Registry API endpoints.
 
 Implements the standard MCP Registry REST API for compatibility with
@@ -79,7 +80,7 @@ async def list_servers(
         )
         logger.debug(f"User accessing {len(all_servers)} accessible servers")
 
-    # For Anthropic Registry API, we don't need UI service filtering - accessible_servers already handles MCP server permissions
+    # For API, we don't need UI service filtering - accessible_servers already handles MCP server permissions
     # No additional filtering needed here - the get_all_servers_with_permissions already filtered by accessible_servers
     filtered_servers = []
 

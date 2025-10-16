@@ -47,7 +47,7 @@ This implementation provides full compatibility with the [Anthropic MCP Registry
 ┌─────────────────────────────────────────────────────────────┐
 │ Registry FastAPI (:7860)                                    │
 │  ├─ nginx_proxied_auth() - Reads headers                   │
-│  ├─ v0_routes.py - API endpoints                           │
+│  ├─ registry_routes.py - API endpoints                           │
 │  ├─ server_service - Data access                           │
 │  └─ transform_service - Format conversion                  │
 └────────────────────┬────────────────────────────────────────┘
@@ -67,8 +67,8 @@ This implementation provides full compatibility with the [Anthropic MCP Registry
 | `registry/constants.py` | Anthropic API constants (`ANTHROPIC_SERVER_NAMESPACE`, limits) |
 | `registry/schemas/anthropic_schema.py` | 9 Pydantic models for Anthropic spec |
 | `registry/services/transform_service.py` | Data transformation between formats |
-| `registry/api/v0_routes.py` | 3 REST endpoints with JWT auth |
-| `tests/unit/api/test_v0_routes.py` | API endpoint tests |
+| `registry/api/registry_routes.py` | 3 REST endpoints with JWT auth |
+| `tests/unit/api/test_registry_routes.py` | API endpoint tests |
 | `tests/unit/services/test_transform_service.py` | Transformation tests |
 | `docs/design/anthropic-api-test-commands.md` | 20 test scenarios with curl |
 
@@ -531,7 +531,7 @@ expected_prefix = f"{namespace}/"  # "io.mcpgateway/"
 ```
 
 **Files using constant**:
-- `registry/api/v0_routes.py` - Validates server name format
+- `registry/api/registry_routes.py` - Validates server name format
 - `registry/services/transform_service.py` - Creates names and metadata keys
 
 ---
