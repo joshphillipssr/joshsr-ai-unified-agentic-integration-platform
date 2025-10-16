@@ -384,7 +384,7 @@ class TestV01GetServerVersion:
         ):
             client = TestClient(app)
             response = client.get(
-                "                f"/{REGISTRY_CONSTANTS.ANTHROPIC_API_VERSION}/servers/io.mcpgateway%2Fserver-a/versions/latest""
+                f"/{REGISTRY_CONSTANTS.ANTHROPIC_API_VERSION}/servers/io.mcpgateway%2Fserver-a/versions/latest"
             )
 
             assert response.status_code == status.HTTP_200_OK
@@ -487,7 +487,7 @@ class TestV01GetServerVersion:
         ):
             client = TestClient(app)
             response = client.get(
-                "                f"/{REGISTRY_CONSTANTS.ANTHROPIC_API_VERSION}/servers/io.mcpgateway%2Fserver-a/versions/latest""
+                f"/{REGISTRY_CONSTANTS.ANTHROPIC_API_VERSION}/servers/io.mcpgateway%2Fserver-a/versions/latest"
             )
 
             assert response.status_code == status.HTTP_200_OK
