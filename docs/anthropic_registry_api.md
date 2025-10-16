@@ -49,11 +49,11 @@ The token file typically contains:
 
 ## API Endpoints
 
-All endpoints are prefixed with the API version (currently `/v0.1`, defined in `registry/constants.py`) and require authentication via Bearer token.
+All endpoints are prefixed with the API version (currently `/{ANTHROPIC_API_VERSION}`, defined in `registry/constants.py`) and require authentication via Bearer token.
 
 ### 1. List Servers
 
-**Endpoint:** `GET /v0.1/servers`
+**Endpoint:** `GET /{ANTHROPIC_API_VERSION}/servers`
 
 Lists all MCP servers that the authenticated user has access to.
 
@@ -78,7 +78,7 @@ Lists all MCP servers that the authenticated user has access to.
 
 ### 2. Get Server Versions
 
-**Endpoint:** `GET /v0.1/servers/{server_name}/versions`
+**Endpoint:** `GET /{ANTHROPIC_API_VERSION}/servers/{server_name}/versions`
 
 Lists all available versions for a specific server.
 
@@ -100,7 +100,7 @@ Lists all available versions for a specific server.
 
 ### 3. Get Server Version Details
 
-**Endpoint:** `GET /v0.1/servers/{server_name}/versions/{version}`
+**Endpoint:** `GET /{ANTHROPIC_API_VERSION}/servers/{server_name}/versions/{version}`
 
 Gets detailed information about a specific server version.
 
@@ -135,17 +135,17 @@ You can test the API directly using curl:
 ACCESS_TOKEN=$(cat /path/to/your/token-file.json | jq -r '.tokens.access_token')
 
 # List all servers you have access to
-curl -X GET "http://localhost/v0.1/servers?limit=10" \
+curl -X GET "http://localhost/{ANTHROPIC_API_VERSION}/servers?limit=10" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json"
 
 # Get versions for a specific server
-curl -X GET "http://localhost/v0.1/servers/io.mcpgateway%2Fatlassian/versions" \
+curl -X GET "http://localhost/{ANTHROPIC_API_VERSION}/servers/io.mcpgateway%2Fatlassian/versions" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json"
 
 # Get details for a specific server version
-curl -X GET "http://localhost/v0.1/servers/io.mcpgateway%2Fatlassian/versions/latest" \
+curl -X GET "http://localhost/{ANTHROPIC_API_VERSION}/servers/io.mcpgateway%2Fatlassian/versions/latest" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json"
 ```
@@ -226,7 +226,7 @@ class MCPRegistryClient:
             params["cursor"] = cursor
 
         response = requests.get(
-            f"{self.base_url}/v0.1/servers",
+            f"{self.base_url}/{ANTHROPIC_API_VERSION}/servers",
             headers=self.headers,
             params=params
         )
@@ -237,7 +237,7 @@ class MCPRegistryClient:
         """Get all versions for a specific server."""
         encoded_name = server_name.replace("/", "%2F")
         response = requests.get(
-            f"{self.base_url}/v0.1/servers/{encoded_name}/versions",
+            f"{self.base_url}/{ANTHROPIC_API_VERSION}/servers/{encoded_name}/versions",
             headers=self.headers
         )
         response.raise_for_status()
@@ -247,7 +247,7 @@ class MCPRegistryClient:
         """Get detailed information about a server version."""
         encoded_name = server_name.replace("/", "%2F")
         response = requests.get(
-            f"{self.base_url}/v0.1/servers/{encoded_name}/versions/{version}",
+            f"{self.base_url}/{ANTHROPIC_API_VERSION}/servers/{encoded_name}/versions/{version}",
             headers=self.headers
         )
         response.raise_for_status()
