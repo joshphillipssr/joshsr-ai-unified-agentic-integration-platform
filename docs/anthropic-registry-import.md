@@ -182,10 +182,10 @@ Visit [registry.modelcontextprotocol.io](https://registry.modelcontextprotocol.i
 
 ```bash
 # List all available servers
-curl https://registry.modelcontextprotocol.io/{ANTHROPIC_API_VERSION}/servers | jq '.servers[] | .name'
+curl https://registry.modelcontextprotocol.io/v0.1/servers | jq '.servers[] | .name'
 
 # Get details for a specific server
-curl https://registry.modelcontextprotocol.io/{ANTHROPIC_API_VERSION}/servers/ai.smithery%2Fsmithery-ai-github/versions/latest | jq '.'
+curl https://registry.modelcontextprotocol.io/v0.1/servers/ai.smithery%2Fsmithery-ai-github/versions/latest | jq '.'
 ```
 
 ### Test Server Before Importing
@@ -288,7 +288,7 @@ To customize how servers are imported, edit `cli/anthropic_transformer.py`:
 
 ```bash
 # Import only servers matching a pattern
-curl -s https://registry.modelcontextprotocol.io/{ANTHROPIC_API_VERSION}/servers | \
+curl -s https://registry.modelcontextprotocol.io/v0.1/servers | \
   jq -r '.servers[] | select(.name | contains("smithery")) | .name' > smithery-servers.txt
 
 ./cli/import_from_anthropic_registry.sh --import-list smithery-servers.txt
