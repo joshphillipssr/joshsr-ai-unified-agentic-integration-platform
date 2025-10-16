@@ -1,5 +1,5 @@
 """
-Unit tests for Anthropic MCP Registry API v0 endpoints.
+Unit tests for Anthropic MCP Registry API v0.1 endpoints.
 """
 
 import pytest
@@ -107,8 +107,8 @@ def sample_servers_data():
 
 
 @pytest.mark.unit
-class TestV0ListServers:
-    """Test suite for GET /v0/servers endpoint."""
+class TestV01ListServers:
+    """Test suite for GET /v0.1/servers endpoint."""
 
     def test_list_servers_admin_sees_all(
         self, mock_enhanced_auth_admin, sample_servers_data
@@ -132,7 +132,7 @@ class TestV0ListServers:
             },
         ):
             client = TestClient(app)
-            response = client.get("/v0/servers")
+            response = client.get("/v0.1/servers")
 
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
@@ -171,7 +171,7 @@ class TestV0ListServers:
             },
         ):
             client = TestClient(app)
-            response = client.get("/v0/servers")
+            response = client.get("/v0.1/servers")
 
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
@@ -201,7 +201,7 @@ class TestV0ListServers:
             },
         ):
             client = TestClient(app)
-            response = client.get("/v0/servers?limit=2")
+            response = client.get("/v0.1/servers?limit=2")
 
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
@@ -234,7 +234,7 @@ class TestV0ListServers:
             },
         ):
             client = TestClient(app)
-            response = client.get("/v0/servers")
+            response = client.get("/v0.1/servers")
 
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
@@ -270,8 +270,8 @@ class TestV0ListServers:
 
 
 @pytest.mark.unit
-class TestV0ListServerVersions:
-    """Test suite for GET /v0/servers/{serverName}/versions endpoint."""
+class TestV01ListServerVersions:
+    """Test suite for GET /v0.1/servers/{serverName}/versions endpoint."""
 
     def test_list_versions_success(self, mock_enhanced_auth_admin, sample_servers_data):
         """Test listing versions for a server."""
@@ -296,7 +296,7 @@ class TestV0ListServerVersions:
         ):
             client = TestClient(app)
             # URL-encode the server name
-            response = client.get("/v0/servers/io.mcpgateway%2Fserver-a/versions")
+            response = client.get("/v0.1/servers/io.mcpgateway%2Fserver-a/versions")
 
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
@@ -315,7 +315,7 @@ class TestV0ListServerVersions:
 
         with patch.object(server_service, "get_server_info", return_value=None):
             client = TestClient(app)
-            response = client.get("/v0/servers/io.mcpgateway%2Fnonexistent/versions")
+            response = client.get("/v0.1/servers/io.mcpgateway%2Fnonexistent/versions")
 
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
@@ -328,7 +328,7 @@ class TestV0ListServerVersions:
         app.dependency_overrides[enhanced_auth] = mock_enhanced_auth_admin
 
         client = TestClient(app)
-        response = client.get("/v0/servers/invalid-format/versions")
+        response = client.get("/v0.1/servers/invalid-format/versions")
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
@@ -348,7 +348,7 @@ class TestV0ListServerVersions:
             return_value=sample_servers_data["/server-a"],
         ):
             client = TestClient(app)
-            response = client.get("/v0/servers/io.mcpgateway%2Fserver-a/versions")
+            response = client.get("/v0.1/servers/io.mcpgateway%2Fserver-a/versions")
 
             # User doesn't have permission to Server A
             assert response.status_code == status.HTTP_404_NOT_FOUND
@@ -357,8 +357,8 @@ class TestV0ListServerVersions:
 
 
 @pytest.mark.unit
-class TestV0GetServerVersion:
-    """Test suite for GET /v0/servers/{serverName}/versions/{version} endpoint."""
+class TestV01GetServerVersion:
+    """Test suite for GET /v0.1/servers/{serverName}/versions/{version} endpoint."""
 
     def test_get_version_latest(self, mock_enhanced_auth_admin, sample_servers_data):
         """Test getting server details with 'latest' version."""
@@ -383,7 +383,7 @@ class TestV0GetServerVersion:
         ):
             client = TestClient(app)
             response = client.get(
-                "/v0/servers/io.mcpgateway%2Fserver-a/versions/latest"
+                "/v0.1/servers/io.mcpgateway%2Fserver-a/versions/latest"
             )
 
             assert response.status_code == status.HTTP_200_OK
@@ -418,7 +418,7 @@ class TestV0GetServerVersion:
             },
         ):
             client = TestClient(app)
-            response = client.get("/v0/servers/io.mcpgateway%2Fserver-a/versions/1.0.0")
+            response = client.get("/v0.1/servers/io.mcpgateway%2Fserver-a/versions/1.0.0")
 
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
@@ -439,7 +439,7 @@ class TestV0GetServerVersion:
             return_value=sample_servers_data["/server-a"],
         ):
             client = TestClient(app)
-            response = client.get("/v0/servers/io.mcpgateway%2Fserver-a/versions/2.0.0")
+            response = client.get("/v0.1/servers/io.mcpgateway%2Fserver-a/versions/2.0.0")
 
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
@@ -454,7 +454,7 @@ class TestV0GetServerVersion:
         with patch.object(server_service, "get_server_info", return_value=None):
             client = TestClient(app)
             response = client.get(
-                "/v0/servers/io.mcpgateway%2Fnonexistent/versions/latest"
+                "/v0.1/servers/io.mcpgateway%2Fnonexistent/versions/latest"
             )
 
             assert response.status_code == status.HTTP_404_NOT_FOUND
@@ -486,7 +486,7 @@ class TestV0GetServerVersion:
         ):
             client = TestClient(app)
             response = client.get(
-                "/v0/servers/io.mcpgateway%2Fserver-a/versions/latest"
+                "/v0.1/servers/io.mcpgateway%2Fserver-a/versions/latest"
             )
 
             assert response.status_code == status.HTTP_200_OK

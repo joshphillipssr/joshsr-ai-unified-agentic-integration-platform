@@ -161,7 +161,7 @@ app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(servers_router, prefix="/api", tags=["Server Management"])
 app.include_router(health_router, prefix="/api/health", tags=["Health Monitoring"])
 
-# Register Anthropic MCP Registry API v0 (public API)
+# Register Anthropic MCP Registry API v0.1 (public API)
 app.include_router(v0_router, tags=["Anthropic Registry API"])
 
 # Register well-known discovery router
@@ -199,8 +199,8 @@ if FRONTEND_BUILD_PATH.exists():
     @app.get("/{full_path:path}")
     async def serve_react_app(full_path: str):
         """Serve React app for all non-API routes"""
-        # Don't serve React for API routes, v0 registry API, health checks, and well-known discovery endpoints
-        if full_path.startswith("api/") or full_path.startswith("v0/") or full_path.startswith("health") or full_path.startswith(".well-known/"):
+        # Don't serve React for API routes, v0.1 registry API, health checks, and well-known discovery endpoints
+        if full_path.startswith("api/") or full_path.startswith("v0.1/") or full_path.startswith("health") or full_path.startswith(".well-known/"):
             raise HTTPException(status_code=404)
 
         return FileResponse(FRONTEND_BUILD_PATH / "index.html")

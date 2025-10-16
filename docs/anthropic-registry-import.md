@@ -286,7 +286,7 @@ To customize how servers are imported, edit `cli/anthropic_transformer.py`:
 
 ```bash
 # Import only servers matching a pattern
-curl -s https://registry.modelcontextprotocol.io/v0/servers | \
+curl -s https://registry.modelcontextprotocol.io/v0.1/servers | \
   jq -r '.servers[] | select(.name | contains("smithery")) | .name' > smithery-servers.txt
 
 ./cli/import_from_anthropic_registry.sh --import-list smithery-servers.txt
