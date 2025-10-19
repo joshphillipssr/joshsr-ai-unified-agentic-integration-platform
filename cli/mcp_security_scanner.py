@@ -10,6 +10,7 @@ import argparse
 import json
 import logging
 import os
+import re
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -29,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 # Constants
 DEFAULT_ANALYZERS = "yara"
-OPENAI_API_KEY_ENV = "OPENAI_API_KEY"
+LLM_API_KEY_ENV = "MCP_SCANNER_LLM_API_KEY"
 # Use absolute path relative to project root
 PROJECT_ROOT = Path(__file__).parent.parent
 OUTPUT_DIR = PROJECT_ROOT / "security_scans"
@@ -49,16 +50,16 @@ class SecurityScanResult(BaseModel):
     output_file: str = Field(..., description="Path to detailed JSON output file")
 
 
-def _get_openai_api_key(
+def _get_llm_api_key(
     cli_value: Optional[str] = None
 ) -> str:
-    """Retrieve OpenAI API key from CLI argument or environment variable.
+    """Retrieve LLM API key from CLI argument or environment variable.
 
     Args:
         cli_value: API key provided via command line
 
     Returns:
-        OpenAI API key
+        LLM API key for security scanning
 
     Raises:
         ValueError: If API key is not found
@@ -66,12 +67,12 @@ def _get_openai_api_key(
     if cli_value:
         return cli_value
 
-    env_value = os.getenv(OPENAI_API_KEY_ENV)
+    env_value = os.getenv(LLM_API_KEY_ENV)
     if env_value:
         return env_value
 
     raise ValueError(
-        f"OpenAI API key must be provided via --api-key or {OPENAI_API_KEY_ENV} env var"
+        f"LLM API key must be provided via --api-key or {LLM_API_KEY_ENV} env var"
     )
 
 
@@ -114,7 +115,7 @@ def _run_mcp_scanner(
     # Set environment variable for API key if provided
     env = os.environ.copy()
     if api_key:
-        env[OPENAI_API_KEY_ENV] = api_key
+        env[LLM_API_KEY_ENV] = api_key
 
     # Run scanner
     try:
@@ -132,15 +133,30 @@ def _run_mcp_scanner(
         # Parse JSON output - scanner outputs JSON array after log messages
         stdout = result.stdout.strip()
 
-        # Find the start of JSON (either '[' for array or '{' for object)
+        # Remove ANSI color codes that can interfere with JSON parsing
+        ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+        stdout = ansi_escape.sub('', stdout)
+
+        # Find the start of JSON array - look for '[\n  {' pattern (array with objects)
+        # This is more robust than just finding first '[' or '{'
         json_start = -1
-        for i, char in enumerate(stdout):
-            if char in ('[', '{'):
+
+        # Try to find JSON array start
+        for i in range(len(stdout) - 1):
+            if stdout[i] == '[' and (i == 0 or stdout[i-1] in '\n\r'):
+                # Found '[' at start of line, likely start of JSON
                 json_start = i
                 break
 
+        # Fallback: find any '[' followed by whitespace and '{'
         if json_start == -1:
-            raise ValueError("No JSON found in scanner output")
+            pattern = r'\[\s*\{'
+            match = re.search(pattern, stdout)
+            if match:
+                json_start = match.start()
+
+        if json_start == -1:
+            raise ValueError("No JSON array found in scanner output")
 
         # Extract and parse JSON
         json_str = stdout[json_start:]
@@ -467,18 +483,18 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Example usage:
-    # Basic scan with YARA analyzer
+    # Basic scan with YARA analyzer (default)
     uv run cli/mcp_security_scanner.py --server-url https://mcp.deepwki.com/mcp
 
-    # Scan with multiple analyzers
-    uv run cli/mcp_security_scanner.py --server-url https://example.com/mcp --analyzers yara,openai
+    # Scan with both YARA and LLM analyzers
+    export MCP_SCANNER_LLM_API_KEY=sk-...
+    uv run cli/mcp_security_scanner.py --server-url https://example.com/mcp --analyzers yara,llm
+
+    # Scan with LLM only, passing API key directly
+    uv run cli/mcp_security_scanner.py --server-url https://example.com/mcp --analyzers llm --api-key sk-...
 
     # Output as JSON
     uv run cli/mcp_security_scanner.py --server-url https://example.com/mcp --json
-
-    # With API key via environment variable
-    export OPENAI_API_KEY=sk-...
-    uv run cli/mcp_security_scanner.py --server-url https://example.com/mcp
 """
     )
 
@@ -496,7 +512,7 @@ Example usage:
 
     parser.add_argument(
         "--api-key",
-        help=f"OpenAI API key (can also use {OPENAI_API_KEY_ENV} env var)"
+        help=f"LLM API key for security scanning (can also use {LLM_API_KEY_ENV} env var)"
     )
 
     parser.add_argument(
@@ -524,10 +540,10 @@ Example usage:
         logging.getLogger().setLevel(logging.DEBUG)
 
     try:
-        # Get API key if needed for OpenAI analyzer
+        # Get API key if needed for LLM analyzer
         api_key = None
         if "llm" in args.analyzers.lower():
-            api_key = _get_openai_api_key(args.api_key)
+            api_key = _get_llm_api_key(args.api_key)
 
         # Run scan
         result = scan_server(

@@ -426,10 +426,12 @@ except Exception as e:
 
 add_service() {
     local config_file="${1}"
+    local analyzers="${2:-yara}"
 
     if [ -z "$config_file" ]; then
-        print_error "Usage: $0 add <config-file>"
+        print_error "Usage: $0 add <config-file> [analyzers]"
         print_error "Example: $0 add cli/examples/example-server-config.json"
+        print_error "Example: $0 add cli/examples/example-server-config.json yara,llm"
         exit 1
     fi
 
@@ -479,10 +481,23 @@ config = json.loads('''$config_json''')
 print(config.get('proxy_pass_url', ''))
 ")
 
+    # Check if LLM analyzer is requested and API key is available
+    if [[ "$analyzers" == *"llm"* ]]; then
+        if [ -z "$MCP_SCANNER_LLM_API_KEY" ]; then
+            echo ""
+            print_error "LLM analyzer requested but MCP_SCANNER_LLM_API_KEY environment variable is not set"
+            print_info "Options:"
+            print_info "  1. Set the environment variable: export MCP_SCANNER_LLM_API_KEY=sk-..."
+            print_info "  2. Use only YARA analyzer: $0 add $config_file yara"
+            exit 1
+        fi
+    fi
+
     # Run security scan
     echo ""
     echo "=== Security Scan ==="
     print_info "Scanning server for security vulnerabilities..."
+    print_info "Using analyzers: $analyzers"
 
     local is_safe="true"
     local scan_output=""
@@ -490,7 +505,7 @@ print(config.get('proxy_pass_url', ''))
     # Run scan using Python CLI and capture JSON output
     # Note: Scanner exits with code 1 when unsafe, so we need to capture both success and "failure" cases
     local scan_exit_code=0
-    scan_output=$(cd "$PROJECT_ROOT" && uv run cli/mcp_security_scanner.py --server-url "$proxy_pass_url" --json 2>&1) || scan_exit_code=$?
+    scan_output=$(cd "$PROJECT_ROOT" && uv run cli/mcp_security_scanner.py --server-url "$proxy_pass_url" --analyzers "$analyzers" --json 2>&1) || scan_exit_code=$?
     print_info "scan_exit_code - $scan_exit_code"
 
     # Exit code 0 = safe, exit code 1 = unsafe, exit code 2 = error
@@ -790,11 +805,28 @@ scan_server_security() {
     if [ -z "$server_url" ]; then
         print_error "Usage: $0 scan <server-url> [analyzers] [api-key]"
         print_error "Example: $0 scan https://mcp.deepwki.com/mcp"
-        print_error "Example: $0 scan https://mcp.deepwki.com/mcp yara,openai sk-..."
+        print_error "Example: $0 scan https://mcp.deepwki.com/mcp yara,llm"
+        print_error "Example: $0 scan https://mcp.deepwki.com/mcp yara,llm \$MCP_SCANNER_LLM_API_KEY"
+        print_error ""
+        print_error "Note: For LLM analyzer, set MCP_SCANNER_LLM_API_KEY environment variable"
+        print_error "      or pass API key as third argument"
         exit 1
     fi
 
     echo "=== Security Scan: $server_url ==="
+
+    # Check if LLM analyzer is requested and API key is available
+    if [[ "$analyzers" == *"llm"* ]]; then
+        if [ -z "$MCP_SCANNER_LLM_API_KEY" ] && [ -z "$api_key" ]; then
+            echo ""
+            print_error "LLM analyzer requested but MCP_SCANNER_LLM_API_KEY environment variable is not set"
+            print_info "Options:"
+            print_info "  1. Set the environment variable: export MCP_SCANNER_LLM_API_KEY=sk-..."
+            print_info "  2. Pass API key as argument: $0 scan $server_url $analyzers sk-your-key"
+            print_info "  3. Use only YARA analyzer: $0 scan $server_url yara"
+            return 1
+        fi
+    fi
 
     # Build command
     local cmd="cd \"$PROJECT_ROOT\" && uv run cli/mcp_security_scanner.py --server-url \"$server_url\" --analyzers \"$analyzers\""
@@ -826,11 +858,13 @@ show_usage() {
     echo "Usage: $0 {add|delete|monitor|test|scan|add-to-groups|remove-from-groups|create-group|delete-group|list-groups} [args...]"
     echo ""
     echo "Service Commands:"
-    echo "  add <config-file>            - Add a service using JSON config and verify registration"
+    echo "  add <config-file> [analyzers] - Add a service using JSON config and verify registration"
+    echo "                                  analyzers: yara (default), llm, or yara,llm"
     echo "  delete <service-path> <service-name> - Delete a service by path and name"
     echo "  monitor [config-file]        - Run health check (all services or specific service from config)"
     echo "  test <config-file>           - Test service searchability using intelligent_tool_finder"
     echo "  scan <server-url> [analyzers] [api-key] - Run security scan on MCP server"
+    echo "                                            analyzers: yara (default), llm, or yara,llm"
     echo ""
     echo "Server-to-Group Commands:"
     echo "  add-to-groups <server-name> <groups> - Add server to specific scopes groups (comma-separated)"
@@ -858,13 +892,20 @@ show_usage() {
     echo ""
     echo "Examples:"
     echo "  # Service operations"
-    echo "  $0 add cli/examples/example-server-config.json"
+    echo "  $0 add cli/examples/example-server-config.json           # Add with default YARA analyzer"
+    echo "  export MCP_SCANNER_LLM_API_KEY=sk-..."
+    echo "  $0 add cli/examples/example-server-config.json yara,llm  # Add with both analyzers"
+    echo "  $0 add cli/examples/example-server-config.json llm       # Add with only LLM analyzer"
     echo "  $0 delete /example-server example-server"
     echo "  $0 monitor                                        # All services"
     echo "  $0 monitor cli/examples/example-server-config.json # Specific service"
     echo "  $0 test cli/examples/example-server-config.json    # Test searchability"
-    echo "  $0 scan https://mcp.deepwki.com/mcp              # Security scan with YARA"
-    echo "  $0 scan https://mcp.deepwki.com/mcp yara,openai sk-... # Scan with multiple analyzers"
+    echo ""
+    echo "  # Security scanning"
+    echo "  $0 scan https://mcp.deepwki.com/mcp              # Security scan with default YARA"
+    echo "  export MCP_SCANNER_LLM_API_KEY=sk-..."
+    echo "  $0 scan https://mcp.deepwki.com/mcp yara,llm     # Scan with both analyzers (uses env var)"
+    echo "  $0 scan https://mcp.deepwki.com/mcp llm sk-...   # Scan with only LLM (pass API key directly)"
     echo ""
     echo "  # Server-to-group operations"
     echo "  $0 add-to-groups example-server 'mcp-servers-restricted/read,mcp-servers-restricted/execute'"
@@ -1125,7 +1166,7 @@ list_groups() {
 # Main script logic
 case "${1:-}" in
     add)
-        add_service "$2"
+        add_service "$2" "$3"
         ;;
     delete)
         delete_service "$2" "$3"

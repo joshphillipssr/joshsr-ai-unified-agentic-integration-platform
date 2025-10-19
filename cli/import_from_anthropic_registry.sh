@@ -6,11 +6,12 @@
 # and registers them with the local MCP Gateway Registry.
 #
 # Usage:
-#   ./import_from_anthropic_registry.sh [--dry-run] [--import-list <file>]
+#   ./import_from_anthropic_registry.sh [--dry-run] [--import-list <file>] [--analyzers <analyzers>]
 #
 # Environment Variables:
 #   GATEWAY_URL - Gateway URL (default: http://localhost)
 #                 Example: export GATEWAY_URL=https://mcpgateway.ddns.net
+#   MCP_SCANNER_LLM_API_KEY - API key for LLM-based security analysis (required if using llm analyzer)
 #
 
 set -e
@@ -87,17 +88,37 @@ validate_package() {
 # Parse arguments
 DRY_RUN=false
 IMPORT_LIST="$SCRIPT_DIR/import_server_list.txt"
+ANALYZERS="yara"
 
 while [[ $# -gt 0 ]]; do
     case $1 in
         --dry-run) DRY_RUN=true; shift ;;
         --import-list) IMPORT_LIST="$2"; shift 2 ;;
+        --analyzers) ANALYZERS="$2"; shift 2 ;;
         --help)
-            echo "Usage: $0 [--dry-run] [--import-list <file>]"
+            echo "Usage: $0 [--dry-run] [--import-list <file>] [--analyzers <analyzers>]"
+            echo ""
+            echo "Options:"
+            echo "  --dry-run              Dry run mode (don't register servers)"
+            echo "  --import-list <file>   Server list file (default: import_server_list.txt)"
+            echo "  --analyzers <list>     Security analyzers: yara, llm, or yara,llm (default: yara)"
             echo ""
             echo "Environment Variables:"
             echo "  GATEWAY_URL - Gateway URL (default: http://localhost)"
             echo "                Example: export GATEWAY_URL=https://mcpgateway.ddns.net"
+            echo "  MCP_SCANNER_LLM_API_KEY - API key for LLM analyzer (required if using llm)"
+            echo ""
+            echo "Examples:"
+            echo "  # Import with default YARA analyzer"
+            echo "  $0"
+            echo ""
+            echo "  # Import with both YARA and LLM analyzers"
+            echo "  export MCP_SCANNER_LLM_API_KEY=sk-..."
+            echo "  $0 --analyzers yara,llm"
+            echo ""
+            echo "  # Import with only LLM analyzer"
+            echo "  export MCP_SCANNER_LLM_API_KEY=sk-..."
+            echo "  $0 --analyzers llm"
             exit 0 ;;
         *) echo "Unknown option: $1"; exit 1 ;;
     esac
@@ -107,6 +128,18 @@ done
 command -v jq >/dev/null || { print_error "jq required"; exit 1; }
 command -v curl >/dev/null || { print_error "curl required"; exit 1; }
 [ -f "$IMPORT_LIST" ] || { print_error "Import list not found: $IMPORT_LIST"; exit 1; }
+
+# Check if LLM analyzer is requested and API key is available
+if [[ "$ANALYZERS" == *"llm"* ]]; then
+    if [ -z "$MCP_SCANNER_LLM_API_KEY" ]; then
+        echo ""
+        print_error "LLM analyzer requested but MCP_SCANNER_LLM_API_KEY environment variable is not set"
+        print_info "Options:"
+        print_info "  1. Set the environment variable: export MCP_SCANNER_LLM_API_KEY=sk-..."
+        print_info "  2. Use only YARA analyzer: $0 --analyzers yara"
+        exit 1
+    fi
+fi
 
 mkdir -p "$TEMP_DIR"
 
@@ -119,6 +152,7 @@ while IFS= read -r line; do
 done < "$IMPORT_LIST"
 
 print_info "Found ${#servers[@]} servers to import"
+print_info "Security analyzers: $ANALYZERS"
 
 # Process each server
 success_count=0
@@ -209,14 +243,14 @@ with open('$config_file', 'w') as f:
     
     # Register with service_mgmt.sh (if not dry run)
     if [ "$DRY_RUN" = false ]; then
-        if GATEWAY_URL="$GATEWAY_URL" "$SCRIPT_DIR/service_mgmt.sh" add "$config_file"; then
+        if GATEWAY_URL="$GATEWAY_URL" "$SCRIPT_DIR/service_mgmt.sh" add "$config_file" "$ANALYZERS"; then
             print_success "Registered $server_name"
             success_count=$((success_count + 1))
         else
             print_error "Failed to register $server_name"
         fi
     else
-        print_info "[DRY RUN] Would register $server_name"
+        print_info "[DRY RUN] Would register $server_name with analyzers: $ANALYZERS"
         success_count=$((success_count + 1))
     fi
     
