@@ -19,6 +19,13 @@ CROSS_MARK="✗"
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
+# Load environment variables from .env file if it exists
+if [ -f "$PROJECT_ROOT/.env" ]; then
+    set -a  # automatically export all variables
+    source "$PROJECT_ROOT/.env"
+    set +a
+fi
+
 # Gateway URL (can be overridden with GATEWAY_URL environment variable)
 GATEWAY_URL="${GATEWAY_URL:-http://localhost}"
 
@@ -481,6 +488,18 @@ config = json.loads('''$config_json''')
 print(config.get('proxy_pass_url', ''))
 ")
 
+    # Extract headers from config if present
+    local headers_json
+    headers_json=$(python3 -c "
+import json
+config = json.loads('''$config_json''')
+headers = config.get('headers', {})
+if headers:
+    print(json.dumps(headers))
+else:
+    print('')
+")
+
     # Check if LLM analyzer is requested and API key is available
     if [[ "$analyzers" == *"llm"* ]]; then
         if [ -z "$MCP_SCANNER_LLM_API_KEY" ] || [[ "$MCP_SCANNER_LLM_API_KEY" == *"your_"* ]] || [[ "$MCP_SCANNER_LLM_API_KEY" == *"placeholder"* ]]; then
@@ -505,10 +524,26 @@ print(config.get('proxy_pass_url', ''))
     local is_safe="true"
     local scan_output=""
 
+    # Prepare scan URL - append /mcp if not already present
+    local scan_url="$proxy_pass_url"
+    if [[ ! "$scan_url" =~ /mcp/?$ ]] && [[ ! "$scan_url" =~ /sse/?$ ]]; then
+        # Remove trailing slash if present, then add /mcp
+        scan_url="${scan_url%/}/mcp"
+        print_info "Appending /mcp to scan URL: $scan_url"
+    fi
+
     # Run scan using Python CLI and capture JSON output
     # Note: Scanner exits with code 1 when unsafe, so we need to capture both success and "failure" cases
     local scan_exit_code=0
-    scan_output=$(cd "$PROJECT_ROOT" && uv run cli/mcp_security_scanner.py --server-url "$proxy_pass_url" --analyzers "$analyzers" --json 2>&1) || scan_exit_code=$?
+    local scan_cmd="cd \"$PROJECT_ROOT\" && uv run cli/mcp_security_scanner.py --server-url \"$scan_url\" --analyzers \"$analyzers\" --json"
+
+    # Add headers if present in config
+    if [ -n "$headers_json" ]; then
+        print_info "Using custom headers from config for security scan"
+        scan_cmd="$scan_cmd --headers '$headers_json'"
+    fi
+
+    scan_output=$(eval "$scan_cmd" 2>&1) || scan_exit_code=$?
     print_info "scan_exit_code - $scan_exit_code"
 
     # Exit code 0 = safe, exit code 1 = unsafe, exit code 2 = error
@@ -804,15 +839,18 @@ scan_server_security() {
     local server_url="$1"
     local analyzers="${2:-yara}"
     local api_key="${3:-}"
+    local headers="${4:-}"
 
     if [ -z "$server_url" ]; then
-        print_error "Usage: $0 scan <server-url> [analyzers] [api-key]"
+        print_error "Usage: $0 scan <server-url> [analyzers] [api-key] [headers]"
         print_error "Example: $0 scan https://mcp.deepwki.com/mcp"
         print_error "Example: $0 scan https://mcp.deepwki.com/mcp yara,llm"
         print_error "Example: $0 scan https://mcp.deepwki.com/mcp yara,llm \$MCP_SCANNER_LLM_API_KEY"
+        print_error "Example: $0 scan https://mcp.deepwki.com/mcp yara '' '{\"X-Authorization\": \"token123\"}'"
         print_error ""
         print_error "Note: For LLM analyzer, set MCP_SCANNER_LLM_API_KEY environment variable"
         print_error "      or pass API key as third argument"
+        print_error "Note: For custom headers, pass JSON string as fourth argument"
         exit 1
     fi
 
@@ -842,6 +880,11 @@ scan_server_security() {
     # Add API key if provided
     if [ -n "$api_key" ]; then
         cmd="$cmd --api-key \"$api_key\""
+    fi
+
+    # Add headers if provided
+    if [ -n "$headers" ]; then
+        cmd="$cmd --headers '$headers'"
     fi
 
     print_info "Running security scan..."
@@ -914,6 +957,7 @@ show_usage() {
     echo "  export MCP_SCANNER_LLM_API_KEY=sk-..."
     echo "  $0 scan https://mcp.deepwki.com/mcp yara,llm     # Scan with both analyzers (uses env var)"
     echo "  $0 scan https://mcp.deepwki.com/mcp llm sk-...   # Scan with only LLM (pass API key directly)"
+    echo "  $0 scan https://mcp.deepwki.com/mcp yara '' '{\"X-Authorization\": \"token\"}' # Scan with custom headers"
     echo ""
     echo "  # Server-to-group operations"
     echo "  $0 add-to-groups example-server 'mcp-servers-restricted/read,mcp-servers-restricted/execute'"
@@ -1186,7 +1230,7 @@ case "${1:-}" in
         test_service "$2"
         ;;
     scan)
-        scan_server_security "$2" "$3" "$4"
+        scan_server_security "$2" "$3" "$4" "$5"
         ;;
     add-to-groups)
         add_to_groups "$2" "$3"

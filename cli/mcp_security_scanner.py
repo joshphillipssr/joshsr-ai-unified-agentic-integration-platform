@@ -85,7 +85,8 @@ def _ensure_output_directory() -> Path:
 def _run_mcp_scanner(
     server_url: str,
     analyzers: str = DEFAULT_ANALYZERS,
-    api_key: Optional[str] = None
+    api_key: Optional[str] = None,
+    headers: Optional[str] = None
 ) -> dict:
     """Run mcp-scanner command and return raw output.
 
@@ -93,6 +94,7 @@ def _run_mcp_scanner(
         server_url: URL of the MCP server to scan
         analyzers: Comma-separated list of analyzers to use
         api_key: OpenAI API key for LLM-based analysis
+        headers: JSON string of headers to include in requests
 
     Returns:
         Dictionary containing raw scanner output
@@ -111,6 +113,23 @@ def _run_mcp_scanner(
         "remote",  # Subcommand to scan remote MCP server
         "--server-url", server_url
     ]
+
+    # Add headers if provided - parse JSON and extract bearer token
+    if headers:
+        logger.info(f"Adding custom headers for scanning")
+        try:
+            headers_dict = json.loads(headers)
+            # Check for X-Authorization header with Bearer token
+            auth_header = headers_dict.get("X-Authorization", "")
+            if auth_header.startswith("Bearer "):
+                bearer_token = auth_header.replace("Bearer ", "")
+                cmd.extend(["--bearer-token", bearer_token])
+                logger.info("Using bearer token authentication")
+            else:
+                logger.warning("Headers provided but no Bearer token found in X-Authorization header")
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse headers JSON: {e}")
+            raise ValueError(f"Invalid headers JSON: {headers}") from e
 
     # Set environment variable for API key if provided
     env = os.environ.copy()
@@ -253,27 +272,51 @@ def _save_scan_output(
 ) -> str:
     """Save detailed scan output to JSON file.
 
+    Saves in two locations:
+    1. security_scans/YYYY-MM-DD/scan_<server>_<timestamp>.json (archived)
+    2. security_scans/scan_<server>_latest.json (always current)
+
     Args:
         server_url: URL of the scanned server
         raw_output: Raw scanner output
 
     Returns:
-        Path to saved output file
+        Path to saved output file (latest version)
     """
     output_dir = _ensure_output_directory()
 
-    # Generate filename from server URL and timestamp
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    # Generate safe filename from server URL
     safe_url = server_url.replace("https://", "").replace("http://", "").replace("/", "_")
-    filename = f"scan_{safe_url}_{timestamp}.json"
 
-    output_file = output_dir / filename
+    # Create date-based subdirectory for archival
+    timestamp = datetime.now(timezone.utc)
+    date_folder = timestamp.strftime("%Y-%m-%d")
+    archive_dir = output_dir / date_folder
+    archive_dir.mkdir(exist_ok=True)
 
-    with open(output_file, 'w') as f:
+    # Save timestamped version in date folder (archived)
+    timestamp_str = timestamp.strftime("%Y%m%d_%H%M%S")
+    archived_filename = f"scan_{safe_url}_{timestamp_str}.json"
+    archived_file = archive_dir / archived_filename
+
+    with open(archived_file, 'w') as f:
         json.dump(raw_output, f, indent=2, default=str)
 
-    logger.info(f"Detailed scan output saved to: {output_file}")
-    return str(output_file)
+    logger.info(f"Archived scan output saved to: {archived_file}")
+
+    # Save latest version in root security_scans folder (always current)
+    # Extract server name from URL for cleaner filename
+    # e.g., http://localhost/realserverfaketools/mcp -> realserverfaketools_mcp.json
+    server_name = safe_url.replace("localhost_", "")
+    latest_filename = f"{server_name}.json"
+    latest_file = output_dir / latest_filename
+
+    with open(latest_file, 'w') as f:
+        json.dump(raw_output, f, indent=2, default=str)
+
+    logger.info(f"Latest scan output saved to: {latest_file}")
+
+    return str(latest_file)
 
 
 def _disable_unsafe_server(
@@ -354,7 +397,8 @@ def scan_server(
     analyzers: str = DEFAULT_ANALYZERS,
     api_key: Optional[str] = None,
     output_json: bool = False,
-    auto_disable: bool = False
+    auto_disable: bool = False,
+    headers: Optional[str] = None
 ) -> SecurityScanResult:
     """Scan an MCP server for security vulnerabilities.
 
@@ -364,13 +408,14 @@ def scan_server(
         api_key: OpenAI API key for LLM-based analysis
         output_json: If True, output raw mcp-scanner JSON directly
         auto_disable: If True, automatically disable servers that fail security scan
+        headers: JSON string of headers to include in requests
 
     Returns:
         SecurityScanResult containing scan results
     """
     # Run scanner
     try:
-        raw_output = _run_mcp_scanner(server_url, analyzers, api_key)
+        raw_output = _run_mcp_scanner(server_url, analyzers, api_key, headers)
     except subprocess.CalledProcessError as e:
         # Scanner failed - create error output and save it
         logger.error(f"Scanner failed with exit code {e.returncode}")
@@ -493,6 +538,9 @@ Example usage:
     # Scan with LLM only, passing API key directly
     uv run cli/mcp_security_scanner.py --server-url https://example.com/mcp --analyzers llm --api-key sk-...
 
+    # Scan with custom headers (e.g., authentication)
+    uv run cli/mcp_security_scanner.py --server-url https://example.com/mcp --headers '{"X-Authorization": "Bearer token123"}'
+
     # Output as JSON
     uv run cli/mcp_security_scanner.py --server-url https://example.com/mcp --json
 """
@@ -533,6 +581,11 @@ Example usage:
         help="Automatically disable servers that fail security scan (is_safe: false)"
     )
 
+    parser.add_argument(
+        "--headers",
+        help="JSON string of headers to include in requests (e.g., '{\"X-Authorization\": \"token\"}')"
+    )
+
     args = parser.parse_args()
 
     # Set debug level if requested
@@ -551,7 +604,8 @@ Example usage:
             analyzers=args.analyzers,
             api_key=api_key,
             output_json=args.json,
-            auto_disable=args.auto_disable
+            auto_disable=args.auto_disable,
+            headers=args.headers
         )
 
         # Exit with non-zero code if unsafe
