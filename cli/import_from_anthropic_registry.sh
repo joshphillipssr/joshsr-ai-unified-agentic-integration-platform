@@ -229,10 +229,9 @@ result['path'] = '/$safe_path'
 
 # Remove unsupported fields for register_service tool
 # The user-facing register_service tool only supports basic fields
-# Note: auth_type, auth_provider, and headers are now kept for proper auth handling
+# Note: auth_type, auth_provider, headers, supported_transports, and tool_list are kept
 unsupported_fields = [
-    'repository_url', 'website_url', 'package_npm', 'remote_url',
-    'supported_transports', 'tool_list'
+    'repository_url', 'website_url', 'package_npm', 'remote_url'
 ]
 for field in unsupported_fields:
     result.pop(field, None)
