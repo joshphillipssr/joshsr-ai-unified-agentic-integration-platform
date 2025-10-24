@@ -154,9 +154,11 @@ Service example-server successfully added and verified
 WARNING: Server failed security scan - Review required before use
 ```
 
-**Screenshot Placeholder:**
+**Screenshot:**
 
-[PLACEHOLDER: Screenshot of server with failed security scan showing security-pending status]
+![Failed Security Scan - Server in Disabled State with Security-Pending Tag](img/failed_scan.png)
+
+*Servers that fail security scans are automatically added in disabled state with a `security-pending` tag, requiring administrator review before being enabled.*
 
 This workflow ensures that vulnerable servers never become accessible to AI agents without explicit administrator review and remediation.
 
