@@ -87,14 +87,34 @@ async function executeCall(parsed: CallCommand, context: CommandExecutionContext
 }
 
 export function overviewMessage(): string {
+  const commands = [
+    { cmd: "/ping", desc: "Check MCP gateway connectivity" },
+    { cmd: "/list", desc: "List MCP tools" },
+    { cmd: "/call", args: "tool=<name> args='<json>'", desc: "Invoke a tool" },
+    { cmd: "/init", desc: "Initialise a session" },
+    { cmd: "/exit", desc: "Exit the CLI (aliases: /quit, /q)" },
+    { cmd: "/help", desc: "Show this help message" },
+    { cmd: "/retry", desc: "Retry authentication" }
+  ];
+
+  const maxCmdLength = Math.max(...commands.map(c => (c.cmd + (c.args ? " " + c.args : "")).length));
+
+  const formatted = commands.map(({ cmd, args, desc }) => {
+    const fullCmd = cmd + (args ? " " + args : "");
+    const padding = " ".repeat(maxCmdLength - fullCmd.length + 2);
+    return `  ${fullCmd}${padding}${desc}`;
+  });
+
   return [
     "Available commands:",
-    "  /ping — check MCP gateway connectivity",
-    "  /list — list MCP tools",
-    "  /call tool=<name> args='<json>' — invoke a tool",
-    "  /init — initialise a session",
-    "  /exit — exit the CLI (aliases: /quit, /q)",
-    "  /service|/import|/user|/diagnostic ... — run registry scripts",
-    "Use natural language when ANTHROPIC_API_KEY is set to let Claude decide which tools to call."
+    ...formatted,
+    "",
+    "Registry scripts:",
+    "  /service <subcommand>         Service management (add, delete, monitor, test, groups)",
+    "  /import <subcommand>          Import from registry (dry, apply)",
+    "  /user <subcommand>            User management (create-m2m, create-human, delete, list)",
+    "  /diagnostic <subcommand>      Run diagnostics (run-suite, run-test)",
+    "",
+    "💡 Tip: Use natural language when ANTHROPIC_API_KEY is set to let Claude decide which tools to call."
   ].join("\n");
 }
