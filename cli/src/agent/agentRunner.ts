@@ -202,9 +202,11 @@ Follow these steps:
 **Sample Configuration:**
 \`\`\`json
 {
-  "server_name": "My Server",
-  "path": "/my-server",
-  "proxy_pass_url": "http://localhost:3000"
+  "server_name": "Cloudflare Documentation MCP Server",
+  "description": "Search Cloudflare documentation and get migration guides",
+  "path": "/cloudflare-docs",
+  "proxy_pass_url": "https://docs.mcp.cloudflare.com/mcp",
+  "supported_transports": ["streamable-http"]
 }
 \`\`\`
 
