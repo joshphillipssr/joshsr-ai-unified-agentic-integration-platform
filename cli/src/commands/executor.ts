@@ -94,7 +94,8 @@ export function overviewMessage(): string {
     { cmd: "/init", desc: "Initialise a session" },
     { cmd: "/exit", desc: "Exit the CLI (aliases: /quit, /q)" },
     { cmd: "/help", desc: "Show this help message" },
-    { cmd: "/retry", desc: "Retry authentication" }
+    { cmd: "/retry", desc: "Retry authentication" },
+    { cmd: "/refresh", desc: "Refresh OAuth tokens (auto-runs generate_creds.sh)" }
   ];
 
   const maxCmdLength = Math.max(...commands.map(c => (c.cmd + (c.args ? " " + c.args : "")).length));

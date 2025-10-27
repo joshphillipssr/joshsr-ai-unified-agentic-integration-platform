@@ -35,7 +35,11 @@ export async function resolveAuth(options: ResolveAuthOptions): Promise<AuthCont
   const warnings: string[] = [];
   const inspections: TokenInspection[] = [];
 
-  const cwd = options.cwd ?? process.cwd();
+  // Use parent directory if running from cli/ subdirectory
+  let cwd = options.cwd ?? process.cwd();
+  if (cwd.endsWith('/cli') || cwd.endsWith('\\cli')) {
+    cwd = path.dirname(cwd);
+  }
 
   let backendToken: string | undefined;
   let backendSource: BackendSource = "none";

@@ -35,33 +35,31 @@ Before using the Ink CLI, you need to:
 2. **Build the CLI**
 3. **Configure AI Provider** (AWS Bedrock or Anthropic API)
 
-### Step 1: Generate OAuth Tokens
+### Step 1: OAuth Tokens (Automatic)
 
-The CLI needs tokens to authenticate with the MCP Gateway:
+The CLI automatically generates OAuth tokens when you start it for the first time:
 
 ```bash
-# Run from the project root directory
-./credentials-provider/generate_creds.sh
-
-# This will:
-# - Generate ingress tokens (Cognito/Keycloak M2M authentication)
-# - Save tokens to .oauth-tokens/ingress.json
-# - (Optional) Generate egress tokens for external providers
+# Just run npm start - tokens are generated automatically if missing
+cd cli
+npm start
 ```
 
-**Options:**
+**Automatic Token Management:**
+- **First Run:** CLI detects missing tokens and automatically runs `generate_creds.sh`
+- **Expired Tokens:** CLI automatically refreshes tokens when they expire or have < 5 minutes remaining
+- **Manual Refresh:** Use `/refresh` command to manually regenerate tokens without restarting
+
+**Manual Token Generation (Optional):**
 ```bash
-# Generate only ingress tokens (for MCP Gateway)
+# Only needed if you want to pre-generate tokens before starting CLI
 ./credentials-provider/generate_creds.sh --ingress-only
 
 # Force regenerate tokens
 ./credentials-provider/generate_creds.sh --force
-
-# Show help
-./credentials-provider/generate_creds.sh --help
 ```
 
-**Note:** Tokens are saved to `.oauth-tokens/ingress.json` and automatically loaded by the CLI.
+**Note:** Tokens are saved to `.oauth-tokens/ingress.json` and automatically managed by the CLI.
 
 ### Step 2: Build the CLI
 
@@ -132,31 +130,30 @@ You: /exit
 
 > **💡 Tip:** Set `BEDROCK_MODEL_ID` to use a different model. If not set, defaults to Claude Sonnet 4.5.
 
-> **⚠️ Prerequisites:** Before running these commands, complete the [Prerequisites](#prerequisites) section above (generate tokens, build CLI).
+> **⚠️ Prerequisites:** Build the CLI first (`npm install && npm run build`). OAuth tokens are generated automatically on first run!
 
 ### For Amazon Internal Users (Isengard)
 
 ```bash
-# 1. Generate MCP Gateway tokens (run from project root)
-./credentials-provider/generate_creds.sh --ingress-only
-
-# 2. Build the CLI
+# 1. Build the CLI
 cd cli && npm install && npm run build
 
-# 3. Export credentials from Isengard
+# 2. Export credentials from Isengard
 isengard credentials export --account <account-id> --role <role-name>
 
-# 4. (Optional) Set region
+# 3. (Optional) Set region
 export AWS_REGION=us-west-2
 
-# 5. (Optional) Choose a different model
+# 4. (Optional) Choose a different model
 export BEDROCK_MODEL_ID=us.anthropic.claude-opus-4-1-20250805-v1:0  # Use Opus instead of Sonnet
 # OR
 export BEDROCK_MODEL_ID=us.anthropic.claude-haiku-4-5-20251001-v1:0  # Use Haiku (faster/cheaper)
 
-# 6. Run the CLI
+# 5. Run the CLI (tokens generated automatically on first run)
 npm start
 ```
+
+**Note:** OAuth tokens are now generated automatically when you start the CLI - no need to run `generate_creds.sh` manually!
 
 **Available models:**
 - `us.anthropic.claude-sonnet-4-5-20250929-v1:0` - Balanced (default)
@@ -168,39 +165,37 @@ See [Available Models](#available-models) section for complete list.
 ### For External AWS Users
 
 ```bash
-# 1. Generate MCP Gateway tokens (run from project root)
-./credentials-provider/generate_creds.sh --ingress-only
-
-# 2. Build the CLI
+# 1. Build the CLI
 cd cli && npm install && npm run build
 
-# 3. Configure AWS credentials
+# 2. Configure AWS credentials
 export AWS_ACCESS_KEY_ID=your_access_key
 export AWS_SECRET_ACCESS_KEY=your_secret_key
 export AWS_REGION=us-east-1
 
-# 4. Run the CLI
+# 3. Run the CLI (tokens generated automatically on first run)
 npm start
 ```
+
+**Note:** OAuth tokens are now generated automatically when you start the CLI - no need to run `generate_creds.sh` manually!
 
 ### For Anthropic API Users
 
 ```bash
-# 1. Generate MCP Gateway tokens (run from project root)
-./credentials-provider/generate_creds.sh --ingress-only
-
-# 2. Build the CLI
+# 1. Build the CLI
 cd cli && npm install && npm run build
 
-# 3. Set your API key
+# 2. Set your API key
 export ANTHROPIC_API_KEY=sk-ant-your-api-key-here
 
-# 4. (Optional) Unset AWS credentials
+# 3. (Optional) Unset AWS credentials
 unset AWS_PROFILE AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
 
-# 5. Run the CLI
+# 4. Run the CLI (tokens generated automatically on first run)
 npm start
 ```
+
+**Note:** OAuth tokens are now generated automatically when you start the CLI - no need to run `generate_creds.sh` manually!
 
 ### Real-World Examples
 

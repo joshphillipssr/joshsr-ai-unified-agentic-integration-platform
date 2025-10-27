@@ -20,6 +20,7 @@ export const AVAILABLE_COMMANDS: CommandOption[] = [
   { command: "/exit", description: "Exit the CLI", category: "Basic" },
   { command: "/quit", description: "Exit the CLI (alias for /exit)", category: "Basic" },
   { command: "/retry", description: "Retry authentication", category: "Basic" },
+  { command: "/refresh", description: "Refresh OAuth tokens (auto-runs generate_creds.sh)", category: "Basic" },
 
   // Service commands
   { command: "/service add", description: "Add a new service", category: "Service" },

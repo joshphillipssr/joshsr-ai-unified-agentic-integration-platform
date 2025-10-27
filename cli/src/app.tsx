@@ -15,6 +15,7 @@ import type {AgentMessage} from "./agent/agentRunner.js";
 import type {CommandExecutionContext} from "./commands/executor.js";
 import {getDefaultProvider, getDefaultModel} from "./agent/modelClient.js";
 import {executeMcpCommand, formatMcpResult} from "./runtime/mcp.js";
+import {refreshTokens, shouldRefreshToken} from "./utils/tokenRefresh.js";
 
 type ChatRole = "system" | "user" | "assistant" | "tool";
 
@@ -68,6 +69,8 @@ export default function App({options}: AppProps) {
   useEffect(() => {
     let cancelled = false;
     setAuthState({status: "loading"});
+
+    // Try to resolve auth, and if it fails due to missing/invalid tokens, automatically refresh
     resolveAuth({
       tokenFile: options.tokenFile,
       explicitToken: options.token,
@@ -78,23 +81,62 @@ export default function App({options}: AppProps) {
           setAuthState({status: "ready", context});
         }
       })
-      .catch((error: unknown) => {
-        if (!cancelled) {
-          setAuthState({status: "error", message: (error as Error).message});
+      .catch(async (error: unknown) => {
+        if (cancelled) return;
+
+        const errorMessage = (error as Error).message;
+
+        // If auth failed due to missing or invalid tokens, try to refresh automatically
+        if (errorMessage.includes("token") || errorMessage.includes("ENOENT") || errorMessage.includes("Failed to load")) {
+          addMessage("assistant", "⚠️  OAuth tokens missing or invalid. Attempting automatic generation...");
+
+          try {
+            const result = await refreshTokens();
+            if (result.success) {
+              addMessage("assistant", "✅ OAuth tokens generated successfully. Authenticating...");
+              // Trigger auth reload
+              setAuthAttempt((attempt) => attempt + 1);
+            } else {
+              setAuthState({status: "error", message: `Token generation failed: ${result.message}`});
+            }
+          } catch (refreshError) {
+            setAuthState({status: "error", message: `Token generation failed: ${(refreshError as Error).message}`});
+          }
+        } else {
+          setAuthState({status: "error", message: errorMessage});
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [options.token, options.tokenFile, authAttempt]);
+  }, [options.token, options.tokenFile, authAttempt, addMessage]);
 
   useEffect(() => {
     if (authState.status === "ready" && !initialised) {
       const infoLines = summariseAuth(authState, gatewayUrl);
       infoLines.forEach((line) => addMessage("assistant", line));
       setInitialised(true);
+
+      // Check if tokens need refresh
+      const gatewayInspection = authState.context.inspections.find(i => i.label.includes("Gateway"));
+      if (gatewayInspection && shouldRefreshToken(gatewayInspection.secondsRemaining)) {
+        refreshTokens()
+          .then((result) => {
+            if (result.success) {
+              const timeInfo = gatewayInspection.expired ? "expired" : `expiring in ${gatewayInspection.secondsRemaining}s`;
+              addMessage("assistant", `✅ OAuth tokens ${timeInfo} - refreshed successfully. Reloading authentication...`);
+              // Trigger auth reload
+              setAuthAttempt((attempt) => attempt + 1);
+            } else {
+              addMessage("assistant", `❌ ${result.message}. Please run: ./credentials-provider/generate_creds.sh --ingress-only`);
+            }
+          })
+          .catch((error) => {
+            addMessage("assistant", `❌ Token refresh failed: ${error.message}. Please run: ./credentials-provider/generate_creds.sh --ingress-only`);
+          });
+      }
     }
-  }, [authState, addMessage, initialised, gatewayUrl]);
+  }, [authState, addMessage, initialised, gatewayUrl, setAuthAttempt]);
 
   useEffect(() => {
     if (!interactive && authState.status === "ready" && options.command) {
@@ -192,6 +234,27 @@ export default function App({options}: AppProps) {
         setAuthAttempt((attempt) => attempt + 1);
         setInitialised(false);
         addMessage("assistant", "Retrying authentication...");
+        return;
+      }
+
+      if (trimmed === "/refresh-tokens" || trimmed === "/refresh") {
+        setBusy(true);
+        refreshTokens()
+          .then((result) => {
+            if (result.success) {
+              addMessage("assistant", "✅ OAuth tokens refreshed successfully. Reloading authentication...");
+              setAuthAttempt((attempt) => attempt + 1);
+              setInitialised(false);
+            } else {
+              addMessage("assistant", `❌ ${result.message}. Try running: ./credentials-provider/generate_creds.sh --ingress-only`);
+            }
+          })
+          .catch((error) => {
+            addMessage("assistant", `❌ Token refresh failed: ${error.message}`);
+          })
+          .finally(() => {
+            setBusy(false);
+          });
         return;
       }
 

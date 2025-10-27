@@ -34,13 +34,18 @@ export async function executePythonMcpCommand(
   let tokenFile: string | undefined;
 
   // Add authentication if available
-  if (backendToken) {
-    // Use a temporary file to pass the backend token
+  // Priority: gatewayToken (for MCP gateway) > backendToken (for specific servers)
+  const tokenToUse = gatewayToken || backendToken;
+  if (tokenToUse) {
+    // Use a temporary file to pass the token
+    // Write ONLY the token string (not JSON) as Python client expects plain token
     const tmpDir = mkdtempSync(join(tmpdir(), "mcp-token-"));
-    tokenFile = join(tmpDir, ".backend_token");
+    tokenFile = join(tmpDir, ".mcp_token");
 
     try {
-      writeFileSync(tokenFile, backendToken);
+      // Ensure we write just the token string, not any JSON wrapper
+      const tokenString = tokenToUse.trim();
+      writeFileSync(tokenFile, tokenString);
       args.push("--token-file", tokenFile);
     } catch (error) {
       // Clean up temp file
@@ -74,11 +79,7 @@ export async function executePythonMcpCommand(
     // Use uv run to execute the Python script
     const proc: ChildProcess = spawn("uv", ["run", pythonScript, ...args], {
       cwd: resolve(__dirname, "../.."),
-      env: {
-        ...process.env,
-        // Pass gateway token via environment if available
-        ...(gatewayToken ? {MCP_GATEWAY_TOKEN: gatewayToken} : {})
-      }
+      env: process.env
     });
 
     if (proc.stdout) {
