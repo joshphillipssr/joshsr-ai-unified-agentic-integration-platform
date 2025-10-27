@@ -147,119 +147,24 @@ export default function App({options}: AppProps) {
 
       // Initialize token status
       const gatewayInspection = authState.context.inspections.find(i => i.label.includes("Gateway"));
-      console.log("DEBUG: Gateway inspection:", gatewayInspection);
-      console.log("DEBUG: All inspections:", authState.context.inspections);
-      if (gatewayInspection) {
-        // Calculate initial values
-        const now = Date.now() / 1000;
-        const expiresAt = gatewayInspection.expiresAt ? gatewayInspection.expiresAt.getTime() / 1000 : 0;
-        const remaining = Math.floor(expiresAt - now);
-
-        console.log("DEBUG: Token remaining seconds:", remaining);
-        setTokenSecondsRemaining(remaining);
-        setTokenExpired(remaining <= 0);
-        setTokenSource(authState.context.gatewaySource);
-
-        // Check if tokens need refresh (silently in background)
-        if (shouldRefreshToken(remaining)) {
-          setIsRefreshingToken(true);
-          refreshTokens()
-            .then((result) => {
-              if (result.success) {
-                setLastTokenRefresh(new Date());
-                // Trigger auth reload
-                setAuthAttempt((attempt) => attempt + 1);
-              }
-            })
-            .catch(() => {
-              // Silent failure, status shown in footer
-            })
-            .finally(() => {
-              setIsRefreshingToken(false);
-            });
-        }
-      }
-    }
-  }, [authState, addMessage, initialised, gatewayUrl, setAuthAttempt]);
-
-  // Timer to update token countdown every second
-  useEffect(() => {
-    if (authState.status !== "ready") return;
-
-    const interval = setInterval(() => {
-      const gatewayInspection = authState.context.inspections.find(i => i.label.includes("Gateway"));
-      if (gatewayInspection) {
-        // Recalculate seconds remaining based on current time
-        const now = Date.now() / 1000;
-        const expiresAt = gatewayInspection.expiresAt ? gatewayInspection.expiresAt.getTime() / 1000 : 0;
-        const remaining = Math.floor(expiresAt - now);
-
-        setTokenSecondsRemaining(remaining);
-        setTokenExpired(remaining <= 0);
-
-        // Auto-refresh if needed (silently) when token has <= 10 seconds remaining
-        if (remaining <= 10 && remaining > 0 && !isRefreshingToken) {
-          setIsRefreshingToken(true);
-          refreshTokens()
-            .then((result) => {
-              if (result.success) {
-                setLastTokenRefresh(new Date());
-                setAuthAttempt((attempt) => attempt + 1);
-              }
-            })
-            .catch(() => {
-              // Silent failure
-            })
-            .finally(() => {
-              setIsRefreshingToken(false);
-            });
-        }
-      } else {
-        // No gateway inspection found - set to unknown
-        setTokenSecondsRemaining(undefined);
-        setTokenExpired(false);
-      }
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [authState, isRefreshingToken, setAuthAttempt]);
-
-  // Separate effect to handle pending command retries after auth reload
-  useEffect(() => {
-    if (authState.status === "ready" && initialised && pendingCommand) {
-      const cmd = pendingCommand;
-      setPendingCommand(null);
-
-      // Add user message for the retry (silent - status shown in footer)
-      const userMsg: ChatMessage = {id: messageCounter.current++, role: "user", text: cmd};
-      setMessages((prev) => [...prev, userMsg]);
-
-      // Execute the command with refreshed auth
-      const commandContext: CommandExecutionContext = {
-        gatewayUrl,
-        gatewayBaseUrl,
-        gatewayToken: authState.context.gatewayToken,
-        backendToken: authState.context.backendToken
-      };
-
-      if (cmd.startsWith("/")) {
-        setBusy(true);
-        executeSlashCommand(cmd, commandContext)
+      if (gatewayInspection && shouldRefreshToken(gatewayInspection.secondsRemaining)) {
+        refreshTokens()
           .then((result) => {
-            addMessage(result.isError ? "assistant" : "tool", result.lines.join("\n"));
-            if (result.shouldExit) {
-              setTimeout(() => process.exit(0), 500);
+            if (result.success) {
+              const timeInfo = gatewayInspection.expired ? "expired" : `expiring in ${gatewayInspection.secondsRemaining}s`;
+              addMessage("assistant", `✅ OAuth tokens ${timeInfo} - refreshed successfully. Reloading authentication...`);
+              // Trigger auth reload
+              setAuthAttempt((attempt) => attempt + 1);
+            } else {
+              addMessage("assistant", `❌ ${result.message}. Please run: ./credentials-provider/generate_creds.sh --ingress-only`);
             }
           })
           .catch((error) => {
-            addMessage("assistant", `Command failed: ${(error as Error).message}`);
-          })
-          .finally(() => {
-            setBusy(false);
+            addMessage("assistant", `❌ Token refresh failed: ${error.message}. Please run: ./credentials-provider/generate_creds.sh --ingress-only`);
           });
       }
     }
-  }, [authState.status, initialised, pendingCommand, gatewayUrl, gatewayBaseUrl, addMessage, setMessages]);
+  }, [authState, addMessage, initialised, gatewayUrl, setAuthAttempt]);
 
   useEffect(() => {
     if (!interactive && authState.status === "ready" && options.command) {
@@ -572,16 +477,6 @@ export default function App({options}: AppProps) {
         <Box>
           <Text color="gray">{"═".repeat(Math.min(process.stdout.columns || 80, 80))}</Text>
         </Box>
-        {authState.status === "ready" && (
-          <TokenStatusFooter
-            secondsRemaining={tokenSecondsRemaining}
-            expired={tokenExpired}
-            isRefreshing={isRefreshingToken}
-            lastRefresh={lastTokenRefresh}
-            source={tokenSource}
-            model={getDefaultModel(getDefaultProvider())}
-          />
-        )}
         {commandSuggestions.length > 0 && commandSuggestions[selectedSuggestionIndex] && (
           <Box marginTop={1}>
             <Text color="cyan" dimColor>
