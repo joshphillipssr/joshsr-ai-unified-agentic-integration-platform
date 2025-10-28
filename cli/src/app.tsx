@@ -68,7 +68,7 @@ export default function App({options}: AppProps) {
     // Check credentials: AWS Profile, Anthropic API key, or default to true
     // (let AWS SDK discover execution role credentials at runtime)
     const hasAwsProfile = Boolean(process.env.AWS_PROFILE);
-    const hasAnthropicKey = Boolean(process.env.ANTHROPIC_API_KEY || process.env.LLM_API_KEY);
+    const hasAnthropicKey = Boolean(process.env.ANTHROPIC_API_KEY);
 
     // If no explicit credentials, assume execution role is available
     // AWS SDK will attempt to get credentials from EC2 instance metadata
