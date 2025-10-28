@@ -160,8 +160,10 @@ export function overviewMessage(): string {
     "  /servers  List all MCP servers",
     "",
     "Examples:",
-    "  \"What MCP tools are available?\"",
-    "  \"What MCP servers are healthy?\"",
+    "  \"How do I import servers from the Anthropic registry?\"",
+    "  \"What authentication methods are supported by the servers?\"",
+    "  \"What transport types do the servers support (stdio, SSE, HTTP)?\"",
+
     ""
   ].join("\n");
 }
