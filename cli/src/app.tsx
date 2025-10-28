@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
-import {Box, Text, useInput} from "ink";
+import {Box, Text, useInput, Static} from "ink";
 import TextInput from "ink-text-input";
 import Spinner from "ink-spinner";
 import {renderMarkdown, hasMarkdown, formatToolOutput} from "./utils/markdown.js";
@@ -430,13 +430,23 @@ export default function App({options}: AppProps) {
     [messages, authState, gatewayUrl, gatewayBaseUrl, agentAvailable, addMessage, commandSuggestions]
   );
 
-  const renderMessages = () => (
-    <Box flexDirection="column" gap={1}>
-      {messages.map((message) => (
-        <MessageBubble key={message.id} role={message.role} text={message.text} />
-      ))}
-    </Box>
-  );
+  const renderMessages = () => {
+    const items = [{id: 0, type: 'banner' as const}, ...messages.map(m => ({...m, type: 'message' as const}))];
+    return (
+      <Static items={items}>
+        {(item) => {
+          if (item.type === 'banner') {
+            return <Banner key="banner" />;
+          }
+          return (
+            <Box key={item.id} flexDirection="column" marginBottom={1}>
+              <MessageBubble role={item.role} text={item.text} />
+            </Box>
+          );
+        }}
+      </Static>
+    );
+  };
 
   const inputPrompt = useMemo(() => {
     if (busy) {
@@ -483,7 +493,6 @@ export default function App({options}: AppProps) {
 
   return (
     <Box flexDirection="column" gap={1}>
-      <Banner />
       {renderMessages()}
       {commandSuggestions.length > 0 && (
         <CommandSuggestions
@@ -598,7 +607,7 @@ function MessageBubble({role, text}: MessageBubbleProps) {
   };
 
   return (
-    <Box flexDirection="column" marginBottom={1}>
+    <Box flexDirection="column">
       <Box marginBottom={0}>
         <Text bold color={color}>
           {label}
