@@ -23,9 +23,10 @@ export function TokenStatusFooter({
 }: TokenStatusFooterProps) {
   const formatTime = (seconds: number): string => {
     if (seconds < 0) return "expired";
-    if (seconds < 60) return `<1m`;
+    if (seconds < 60) return `${seconds}s`;
     const mins = Math.floor(seconds / 60);
-    return `${mins}m`;
+    const secs = seconds % 60;
+    return `${mins}m ${secs}s`;
   };
 
   const getStatusIcon = (): string => {

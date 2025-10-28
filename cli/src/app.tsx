@@ -236,13 +236,8 @@ export default function App({options}: AppProps) {
         const now = Date.now() / 1000;
         const expiresAt = gatewayInspection.expiresAt ? gatewayInspection.expiresAt.getTime() / 1000 : 0;
         const remaining = Math.floor(expiresAt - now);
-
-        // Only update state if values actually changed
-        setTokenSecondsRemaining((prev) => prev !== remaining ? remaining : prev);
-        setTokenExpired((prev) => {
-          const newExpired = remaining <= 0;
-          return prev !== newExpired ? newExpired : prev;
-        });
+        setTokenSecondsRemaining(remaining);
+        setTokenExpired(remaining <= 0);
 
         // Auto-refresh when <= 10 seconds remaining
         if (shouldRefreshToken(remaining) && !isRefreshingToken) {
@@ -262,7 +257,7 @@ export default function App({options}: AppProps) {
             });
         }
       }
-    }, 10000);
+    }, 1000);
 
     return () => clearInterval(interval);
   }, [authState, isRefreshingToken, setAuthAttempt]);
@@ -435,13 +430,13 @@ export default function App({options}: AppProps) {
     [messages, authState, gatewayUrl, gatewayBaseUrl, agentAvailable, addMessage, commandSuggestions]
   );
 
-  const renderMessages = useMemo(() => (
+  const renderMessages = () => (
     <Box flexDirection="column" gap={1}>
       {messages.map((message) => (
         <MessageBubble key={message.id} role={message.role} text={message.text} />
       ))}
     </Box>
-  ), [messages]);
+  );
 
   const inputPrompt = useMemo(() => {
     if (busy) {
@@ -489,7 +484,7 @@ export default function App({options}: AppProps) {
   return (
     <Box flexDirection="column" gap={1}>
       <Banner />
-      {renderMessages}
+      {renderMessages()}
       {commandSuggestions.length > 0 && (
         <CommandSuggestions
           suggestions={commandSuggestions}
@@ -578,7 +573,7 @@ interface MessageBubbleProps {
   text: string;
 }
 
-const MessageBubble = React.memo(function MessageBubble({role, text}: MessageBubbleProps) {
+function MessageBubble({role, text}: MessageBubbleProps) {
   const color = roleColor(role);
   const label = roleLabel(role);
 
@@ -616,7 +611,7 @@ const MessageBubble = React.memo(function MessageBubble({role, text}: MessageBub
       </Box>
     </Box>
   );
-});
+}
 
 function roleLabel(role: ChatRole): string {
   switch (role) {
