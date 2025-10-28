@@ -71,7 +71,7 @@ export function TokenStatusFooter({
   return (
     <Box flexDirection="row" gap={1}>
       <Text color={getStatusColor()}>
-        {icon && `${icon} `}Token: {getStatusText()}
+        Token: {getStatusText()}
       </Text>
       {source && (
         <Text>
