@@ -505,5 +505,73 @@ class FaissService:
             return {}
 
 
+    async def add_or_update_entity(
+        self,
+        entity_path: str,
+        entity_info: Dict[str, Any],
+        entity_type: str,
+        is_enabled: bool = False,
+    ) -> None:
+        """
+        Wrapper method for adding or updating an entity.
+
+        Routes agents to appropriate methods based on entity_type.
+        """
+        if entity_type == "a2a_agent":
+            agent_card = AgentCard(**entity_info)
+            await self.add_or_update_agent(entity_path, agent_card, is_enabled)
+        elif entity_type == "mcp_server":
+            await self.add_or_update_service(entity_path, entity_info, is_enabled)
+
+
+    async def remove_entity(
+        self,
+        entity_path: str,
+    ) -> None:
+        """
+        Wrapper method for removing an entity.
+
+        Attempts to remove as agent first, then server.
+        """
+        try:
+            await self.remove_agent(entity_path)
+        except Exception:
+            try:
+                await self.remove_service(entity_path)
+            except Exception as e:
+                logger.warning(f"Could not remove entity {entity_path}: {e}")
+
+
+    async def search_entities(
+        self,
+        query: str,
+        entity_types: Optional[List[str]] = None,
+        enabled_only: bool = False,
+        max_results: int = 10,
+    ) -> List[Dict[str, Any]]:
+        """
+        Wrapper method for searching entities.
+
+        Searches both agents and servers, returns list of matching entities.
+        """
+        if entity_types is None:
+            entity_types = ["a2a_agent", "mcp_server"]
+
+        results = await self.search_mixed(
+            query=query,
+            entity_types=entity_types,
+            enabled_only=enabled_only,
+            max_k=max_results,
+        )
+
+        all_results = []
+        if "agents" in results:
+            all_results.extend(results["agents"])
+        if "servers" in results:
+            all_results.extend(results["servers"])
+
+        return all_results[:max_results]
+
+
 # Global service instance
 faiss_service = FaissService() 

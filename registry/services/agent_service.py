@@ -614,5 +614,79 @@ class AgentService:
             logger.error(f"Failed to index agent in FAISS: {e}", exc_info=True)
 
 
+    def get_agent_info(
+        self,
+        path: str,
+    ) -> Optional[AgentCard]:
+        """
+        Get agent by path (returns None if not found).
+
+        Args:
+            path: Agent path
+
+        Returns:
+            Agent card or None if not found
+        """
+        try:
+            return self.get_agent(path)
+        except ValueError:
+            return None
+
+
+    def get_all_agents(self) -> List[AgentCard]:
+        """
+        Get all registered agents.
+
+        Returns:
+            List of all agent cards
+        """
+        return self.list_agents()
+
+
+    def remove_agent(
+        self,
+        path: str,
+    ) -> bool:
+        """
+        Remove an agent from registry.
+
+        Args:
+            path: Agent path
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            self.delete_agent(path)
+            return True
+        except ValueError:
+            return False
+
+
+    def toggle_agent(
+        self,
+        path: str,
+        enabled: bool,
+    ) -> bool:
+        """
+        Toggle agent enabled/disabled state.
+
+        Args:
+            path: Agent path
+            enabled: New enabled state
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            if enabled:
+                self.enable_agent(path)
+            else:
+                self.disable_agent(path)
+            return True
+        except ValueError:
+            return False
+
+
 # Global service instance
 agent_service = AgentService()

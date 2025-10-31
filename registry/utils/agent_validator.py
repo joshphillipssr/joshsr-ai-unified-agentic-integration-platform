@@ -341,3 +341,31 @@ def validate_agent_card(
         errors=errors,
         warnings=warnings,
     )
+
+
+class AgentValidator:
+    """Service for validating A2A agent cards."""
+
+    async def validate_agent_card(
+        self,
+        agent_card: AgentCard,
+        verify_endpoint: bool = False,
+    ) -> ValidationResult:
+        """
+        Async wrapper for validating an agent card.
+
+        Args:
+            agent_card: AgentCard instance to validate
+            verify_endpoint: If True, attempt to verify endpoint
+
+        Returns:
+            ValidationResult with validation status and messages
+        """
+        return validate_agent_card(
+            agent_card=agent_card,
+            check_reachability=verify_endpoint,
+        )
+
+
+# Global validator instance
+agent_validator = AgentValidator()
