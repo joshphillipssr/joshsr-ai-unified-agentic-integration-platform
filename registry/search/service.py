@@ -278,6 +278,7 @@ class FaissService:
         self,
         agent_path: str,
         agent_card: AgentCard,
+        is_enabled: bool = False,
     ) -> None:
         """Add or update an agent in the FAISS index."""
         if self.embedding_model is None or self.faiss_index is None:
