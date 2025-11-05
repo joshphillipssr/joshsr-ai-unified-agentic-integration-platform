@@ -1,4 +1,4 @@
-as#!/bin/bash
+#!/bin/bash
 
 # Agent Management Script for MCP Gateway Registry
 # Usage: ./cli/agent_mgmt.sh {register|list|get|test|test-all} [args...]
