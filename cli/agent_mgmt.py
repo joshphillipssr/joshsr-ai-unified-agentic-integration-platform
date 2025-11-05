@@ -455,7 +455,7 @@ def search_agents(
 
         if response.status_code == 200:
             data = response.json()
-            results = data.get("results", [])
+            results = data.get("agents", [])
 
             if results:
                 print(f"Found {len(results)} agent(s) matching '{query}':")
