@@ -23,7 +23,7 @@ if [ -f "$PROJECT_ROOT/.env" ]; then
 fi
 
 # Default values
-BASE_URL="${BASE_URL:-http://localhost:7860}"
+BASE_URL="${BASE_URL:-http://localhost}"  # Goes through nginx (port 80), not direct :7860
 TOKEN_FILE="${TOKEN_FILE:-.oauth-tokens/ingress.json}"
 DEBUG="${DEBUG:-false}"
 
@@ -74,8 +74,12 @@ Examples:
   $0 test-all
 
 Prerequisites:
-  Start the registry service in another terminal:
-    python -m uvicorn registry.main:app --reload
+  Ensure the registry and nginx services are running:
+    1. Registry service (port 7860)
+    2. Nginx reverse proxy (port 80)
+
+  Docker setup:
+    docker-compose up -d
 
 For more information, run:
   uv run python cli/agent_mgmt.py --help
