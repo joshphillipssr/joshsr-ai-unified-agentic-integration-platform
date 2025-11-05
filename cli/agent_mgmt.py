@@ -15,7 +15,7 @@ PERMISSIONS:
 - Agent operations: register, modify, delete, list (full admin access)
 - Group assignment: mcp-servers-unrestricted, a2a-agent-admin
 
-API: /api/agents (A2A Agent Management API - NOT Anthropic Registry API v0)
+API: /api/agents (A2A Agent Management API - dedicated endpoints for agent management)
 - List agents: GET /api/agents
 - Get agent: GET /api/agents/{path}
 - Register agent: POST /api/agents/register
@@ -39,7 +39,6 @@ import json
 import logging
 import os
 import sys
-from pathlib import Path
 from typing import Any, Dict, Optional
 
 import requests
