@@ -54,6 +54,7 @@ Commands:
   toggle              Enable/disable agent
   test                Test agent accessibility
   test-all            Test all agents
+  search              Search agents using semantic query
 
 Options:
   --base-url URL        Base URL for API (default: $BASE_URL)
@@ -87,6 +88,9 @@ Examples:
 
   # Test all agents
   $0 test-all
+
+  # Search agents with semantic query
+  $0 search "code review tool"
 
 Prerequisites:
   Ensure the registry and nginx services are running:
