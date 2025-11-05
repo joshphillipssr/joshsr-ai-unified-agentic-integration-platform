@@ -1,4 +1,4 @@
-#!/bin/bash
+as#!/bin/bash
 
 # Agent Management Script for MCP Gateway Registry
 # Usage: ./cli/agent_mgmt.sh {register|list|get|test|test-all} [args...]
@@ -49,6 +49,9 @@ Commands:
   register            Register agent from JSON file
   list                List all agents
   get                 Get agent details
+  update              Update agent from JSON file
+  delete              Delete agent
+  toggle              Enable/disable agent
   test                Test agent accessibility
   test-all            Test all agents
 
@@ -66,6 +69,18 @@ Examples:
 
   # Get agent details
   $0 get /test-reviewer
+
+  # Update an agent
+  $0 update /test-reviewer cli/examples/updated_agent.json
+
+  # Enable an agent
+  $0 toggle /test-reviewer true
+
+  # Disable an agent
+  $0 toggle /test-reviewer false
+
+  # Delete an agent
+  $0 delete /test-reviewer
 
   # Test agent accessibility
   $0 test /test-reviewer

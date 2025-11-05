@@ -415,38 +415,173 @@ def register_agent(
         sys.exit(1)
 
 
+def update_agent(
+    base_url: str,
+    token: str,
+    agent_path: str,
+    agent_file: str,
+) -> None:
+    """Update agent via A2A Agent Management API."""
+    # Normalize path
+    if not agent_path.startswith("/"):
+        agent_path = "/" + agent_path
+
+    abs_agent_file = os.path.abspath(agent_file)
+    logger.info(f"Loading agent file from: {abs_agent_file}")
+
+    try:
+        with open(abs_agent_file) as f:
+            agent_data = json.load(f)
+        logger.info(f"✓ Agent file loaded successfully")
+    except FileNotFoundError:
+        logger.error(f"✗ Agent file not found: {abs_agent_file}")
+        print(f"Error: File not found: {abs_agent_file}")
+        sys.exit(1)
+    except json.JSONDecodeError as e:
+        logger.error(f"✗ Invalid JSON in file: {abs_agent_file}")
+        logger.error(f"  Error: {e}")
+        print(f"Error: Invalid JSON in file: {abs_agent_file}")
+        sys.exit(1)
+
+    endpoint = f"{base_url}{API_BASE}{agent_path}"
+    agent_name = agent_data.get("name", "Unknown")
+
+    logger.info(f"Updating agent at path '{agent_path}'...")
+
+    try:
+        response = _make_request("PUT", endpoint, token, agent_data)
+
+        if response.status_code == 200:
+            logger.info(f"✓ Agent '{agent_name}' updated successfully!")
+            print(f"Agent '{agent_name}' updated successfully!")
+            _print_response(response)
+        elif response.status_code == 404:
+            print(f"Error: Agent at path '{agent_path}' not found")
+        elif response.status_code == 401:
+            print("Error: Authentication failed (401)")
+        elif response.status_code == 403:
+            print("Error: Access denied - you do not have permission to update this agent")
+        else:
+            print(f"Error: HTTP {response.status_code}")
+            _print_response(response)
+
+    except (TimeoutError, ConnectionError, RuntimeError) as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+
+
+def delete_agent(
+    base_url: str,
+    token: str,
+    agent_path: str,
+) -> None:
+    """Delete agent via A2A Agent Management API."""
+    # Normalize path
+    if not agent_path.startswith("/"):
+        agent_path = "/" + agent_path
+
+    endpoint = f"{base_url}{API_BASE}{agent_path}"
+
+    logger.info(f"Deleting agent at path '{agent_path}'...")
+
+    try:
+        response = _make_request("DELETE", endpoint, token)
+
+        if response.status_code == 204:
+            logger.info(f"✓ Agent at path '{agent_path}' deleted successfully!")
+            print(f"Agent at path '{agent_path}' deleted successfully!")
+        elif response.status_code == 404:
+            print(f"Error: Agent at path '{agent_path}' not found")
+        elif response.status_code == 401:
+            print("Error: Authentication failed (401)")
+        elif response.status_code == 403:
+            print("Error: Access denied - you do not have permission to delete this agent")
+        else:
+            print(f"Error: HTTP {response.status_code}")
+            _print_response(response)
+
+    except (TimeoutError, ConnectionError, RuntimeError) as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+
+
+def toggle_agent(
+    base_url: str,
+    token: str,
+    agent_path: str,
+    enabled: bool,
+) -> None:
+    """Toggle agent enabled/disabled status via A2A Agent Management API."""
+    # Normalize path
+    if not agent_path.startswith("/"):
+        agent_path = "/" + agent_path
+
+    endpoint = f"{base_url}{API_BASE}{agent_path}/toggle"
+    params = f"?enabled={str(enabled).lower()}"
+
+    logger.info(f"Setting agent at path '{agent_path}' to {enabled}...")
+
+    try:
+        response = _make_request("POST", endpoint + params, token)
+
+        if response.status_code == 200:
+            data = response.json()
+            is_enabled = data.get("is_enabled", False)
+            status = "ENABLED" if is_enabled else "DISABLED"
+            logger.info(f"✓ Agent at path '{agent_path}' toggled successfully!")
+            print(f"Agent at path '{agent_path}' is now {status}")
+            _print_response(response)
+        elif response.status_code == 404:
+            print(f"Error: Agent at path '{agent_path}' not found")
+        elif response.status_code == 401:
+            print("Error: Authentication failed (401)")
+        elif response.status_code == 403:
+            print("Error: Access denied - you do not have permission to toggle this agent")
+        else:
+            print(f"Error: HTTP {response.status_code}")
+            _print_response(response)
+
+    except (TimeoutError, ConnectionError, RuntimeError) as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+
+
 def main() -> None:
     """Main entry point."""
     parser = argparse.ArgumentParser(
-        description="Agent Management Script for MCP Gateway Registry - Public API",
+        description="Agent Management Script for MCP Gateway Registry - A2A Agent Management API",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Start the registry service (run in another terminal)
-  python -m uvicorn registry.main:app --reload
-
-  # Register an agent from JSON file
-  export TOKEN="test-token"
-  uv run python cli/agent_mgmt.py register cli/examples/test_code_reviewer_agent.json
-
   # List all agents
   uv run python cli/agent_mgmt.py list
 
   # Get agent details
-  uv run python cli/agent_mgmt.py get /test-reviewer
+  uv run python cli/agent_mgmt.py get /code-reviewer
+
+  # Register an agent from JSON file
+  uv run python cli/agent_mgmt.py register cli/examples/test_code_reviewer_agent.json
+
+  # Update an agent with new JSON
+  uv run python cli/agent_mgmt.py update /code-reviewer cli/examples/updated_agent.json
+
+  # Enable an agent
+  uv run python cli/agent_mgmt.py toggle /code-reviewer true
+
+  # Disable an agent
+  uv run python cli/agent_mgmt.py toggle /code-reviewer false
+
+  # Delete an agent
+  uv run python cli/agent_mgmt.py delete /code-reviewer
 
   # Test agent accessibility
-  uv run python cli/agent_mgmt.py test /test-reviewer
+  uv run python cli/agent_mgmt.py test /code-reviewer
 
   # Test all agents
   uv run python cli/agent_mgmt.py test-all
 
 For more information on creating agent JSON files:
   cat cli/examples/README.md
-  cat .scratchpad/A2A_AGENT_CLI_REGISTRATION_GUIDE.md
-
-Note: For agent deletion, use the web UI or administrative CLI tools.
-This script provides discovery, testing, and registration functionality.
 """,
     )
 
@@ -486,6 +621,20 @@ This script provides discovery, testing, and registration functionality.
     # Test all command
     subparsers.add_parser("test-all", help="Test all agents")
 
+    # Update command
+    update_parser = subparsers.add_parser("update", help="Update agent from JSON file")
+    update_parser.add_argument("path", help="Agent path (e.g., /code-reviewer)")
+    update_parser.add_argument("file", help="Path to updated agent JSON file")
+
+    # Delete command
+    delete_parser = subparsers.add_parser("delete", help="Delete agent")
+    delete_parser.add_argument("path", help="Agent path (e.g., /code-reviewer)")
+
+    # Toggle command
+    toggle_parser = subparsers.add_parser("toggle", help="Toggle agent enabled/disabled status")
+    toggle_parser.add_argument("path", help="Agent path (e.g., /code-reviewer)")
+    toggle_parser.add_argument("enabled", type=lambda x: x.lower() == "true", help="Enable (true) or disable (false) the agent")
+
     args = parser.parse_args()
 
     if args.debug:
@@ -513,6 +662,12 @@ This script provides discovery, testing, and registration functionality.
         test_all_agents(args.base_url, token)
     elif args.command == "register":
         register_agent(args.base_url, token, args.file)
+    elif args.command == "update":
+        update_agent(args.base_url, token, args.path, args.file)
+    elif args.command == "delete":
+        delete_agent(args.base_url, token, args.path)
+    elif args.command == "toggle":
+        toggle_agent(args.base_url, token, args.path, args.enabled)
 
 
 if __name__ == "__main__":
