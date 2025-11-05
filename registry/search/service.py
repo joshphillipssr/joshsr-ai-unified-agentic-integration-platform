@@ -1,6 +1,7 @@
 import json
 import asyncio
 import logging
+from datetime import datetime
 from pathlib import Path
 from typing import (
     Dict,
@@ -12,12 +13,28 @@ from typing import (
 import faiss
 import numpy as np
 from sentence_transformers import SentenceTransformer
+from pydantic import HttpUrl
 
 from ..core.config import settings
 from ..core.schemas import ServerInfo
 from ..schemas.agent_models import AgentCard
 
 logger = logging.getLogger(__name__)
+
+
+class _PydanticAwareJSONEncoder(json.JSONEncoder):
+    """Custom JSON encoder that handles Pydantic and standard types."""
+
+    def default(
+        self,
+        o: Any,
+    ) -> Any:
+        """Convert non-serializable types to JSON-compatible formats."""
+        if isinstance(o, HttpUrl):
+            return str(o)
+        if isinstance(o, datetime):
+            return o.isoformat()
+        return super().default(o)
 
 
 class FaissService:
@@ -123,7 +140,7 @@ class FaissService:
                 json.dump({
                     "metadata": self.metadata_store,
                     "next_id": self.next_id_counter
-                }, f, indent=2)
+                }, f, indent=2, cls=_PydanticAwareJSONEncoder)
                 
             logger.info("FAISS data saved successfully.")
         except Exception as e:
