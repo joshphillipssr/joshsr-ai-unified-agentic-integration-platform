@@ -23,6 +23,7 @@
 | **Agent** | Prompt execution, tool calls | Localhost + Production |
 | **Anthropic API** | List servers, get details | Localhost + Production |
 | **Service Mgmt** | Import, registration, CRUD | Localhost |
+| **Access Control** | LOB bot permissions, agent filtering | Localhost |
 | **Code Quality** | Syntax, linting, validation | N/A |
 | **Production** | All above against production URL | **Production** |
 
@@ -41,6 +42,10 @@
 
 # Skip production (for local dev)
 ./tests/run_all_tests.sh --skip-production
+
+# LOB Bot Access Control Tests (separate)
+# See LOB_BOT_ACCESS_CONTROL_TESTING.md for details
+bash tests/run-lob-bot-tests.sh
 ```
 
 ### Check Results
@@ -110,6 +115,27 @@ Failed Tests:  5
 - [ ] Logs show no errors or warnings
 - [ ] Token is not about to expire
 
+## LOB Bot Access Control Testing
+
+For comprehensive testing of access control for LOB1, LOB2, and Admin bots:
+
+**See:** [LOB_BOT_ACCESS_CONTROL_TESTING.md](./LOB_BOT_ACCESS_CONTROL_TESTING.md)
+
+This covers:
+- **MCP Service Access** (Tests 1-6): Verify bots can only call permitted services
+- **Agent Registry API** (Tests 7-14): Verify bots only see/access permitted agents
+
+Quick run:
+```bash
+# Regenerate tokens (5-minute expiration)
+./keycloak/setup/generate-agent-token.sh lob1-bot
+./keycloak/setup/generate-agent-token.sh lob2-bot
+./keycloak/setup/generate-agent-token.sh admin-bot
+
+# Run all access control tests
+bash tests/run-lob-bot-tests.sh
+```
+
 ## Test Logs Location
 
 All logs saved to `/tmp/`:
@@ -140,6 +166,9 @@ If tests are failing and you can't figure out why:
 
 - [Full Testing Guide](../docs/testing.md)
 - [Anthropic API](../docs/anthropic_registry_api.md)
+- [LOB Bot Access Control Testing](./LOB_BOT_ACCESS_CONTROL_TESTING.md)
+- [Scopes Configuration](../auth_server/scopes.yml)
+- [Agent Routes](../registry/api/agent_routes.py)
 
 ## Tips
 
@@ -148,6 +177,7 @@ If tests are failing and you can't figure out why:
 3. **Check logs immediately** if any test fails
 4. **Production tests are mandatory** for PR merge
 5. **Don't skip tests** - they catch real issues!
+6. **Test access control separately** with LOB bot tests - see [LOB_BOT_ACCESS_CONTROL_TESTING.md](./LOB_BOT_ACCESS_CONTROL_TESTING.md)
 
 ## Typical Runtimes
 
