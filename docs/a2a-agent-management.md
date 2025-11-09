@@ -18,8 +18,21 @@ uv run python cli/agent_mgmt.py list
 # Get agent details
 uv run python cli/agent_mgmt.py get /code-reviewer
 
-# Test agent
+# Test agent (verify registry metadata and endpoint accessibility)
 uv run python cli/agent_mgmt.py test /code-reviewer
+
+# Test all agents
+uv run python cli/agent_mgmt.py test-all
+
+# Search agents (semantic search by capability)
+uv run python cli/agent_mgmt.py search "code review agent"
+
+# Update agent
+uv run python cli/agent_mgmt.py update /code-reviewer cli/examples/code_reviewer_agent.json
+
+# Toggle agent enabled/disabled status
+uv run python cli/agent_mgmt.py toggle /code-reviewer true   # Enable
+uv run python cli/agent_mgmt.py toggle /code-reviewer false  # Disable
 
 # Delete agent
 uv run python cli/agent_mgmt.py delete /code-reviewer
@@ -198,13 +211,13 @@ Should show: `"groups": ["mcp-servers-unrestricted", "a2a-agent-admin"]`
 
 **Check 4: Nginx forwards scopes**
 ```bash
-curl -v http://localhost:7860/api/agents/register \
+curl -v http://localhost/api/agents/register \
   -X POST \
   -H "Authorization: Bearer $(python3 -c 'import json; print(json.load(open(\".oauth-tokens/ingress.json\"))[\"access_token\"])')" \
   2>&1 | grep -i x-scopes
 ```
 
-Should include: `x-scopes: a2a-agent-admin`
+Should include: `x-scopes: a2a-agent-admin` (note: uses port 80 via Nginx, not direct application port)
 
 ### Solution: Refresh Token
 
