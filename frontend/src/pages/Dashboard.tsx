@@ -114,6 +114,9 @@ const Dashboard: React.FC = () => {
   const [agentsLoading, setAgentsLoading] = useState(true);
   const [agentsError, setAgentsError] = useState<string | null>(null);
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
+
+  // View filter state
+  const [viewFilter, setViewFilter] = useState<'all' | 'servers' | 'agents' | 'external'>('all');
   const [editAgentForm, setEditAgentForm] = useState({
     name: '',
     path: '',
@@ -205,9 +208,28 @@ const Dashboard: React.FC = () => {
     }
   }, [user, fetchAgents]);
 
+  // External registry tags - can be configured via environment or constants
+  // Default tags that identify servers from external registries
+  const EXTERNAL_REGISTRY_TAGS = ['anthropic-registry', 'workday-asor'];
+
+  // Separate internal and external registry servers
+  const internalServers = useMemo(() => {
+    return servers.filter(s => {
+      const serverTags = s.tags || [];
+      return !EXTERNAL_REGISTRY_TAGS.some(tag => serverTags.includes(tag));
+    });
+  }, [servers]);
+
+  const externalServers = useMemo(() => {
+    return servers.filter(s => {
+      const serverTags = s.tags || [];
+      return EXTERNAL_REGISTRY_TAGS.some(tag => serverTags.includes(tag));
+    });
+  }, [servers]);
+
   // Filter servers based on activeFilter and searchTerm
   const filteredServers = useMemo(() => {
-    let filtered = servers;
+    let filtered = internalServers;
 
     // Apply filter first
     if (activeFilter === 'enabled') filtered = filtered.filter(s => s.enabled);
@@ -226,7 +248,24 @@ const Dashboard: React.FC = () => {
     }
 
     return filtered;
-  }, [servers, activeFilter, searchTerm]);
+  }, [internalServers, activeFilter, searchTerm]);
+
+  // Filter external servers based on searchTerm
+  const filteredExternalServers = useMemo(() => {
+    let filtered = externalServers;
+
+    if (searchTerm) {
+      const query = searchTerm.toLowerCase();
+      filtered = filtered.filter(server =>
+        server.name.toLowerCase().includes(query) ||
+        (server.description || '').toLowerCase().includes(query) ||
+        server.path.toLowerCase().includes(query) ||
+        (server.tags || []).some(tag => tag.toLowerCase().includes(query))
+      );
+    }
+
+    return filtered;
+  }, [externalServers, searchTerm]);
 
   // Filter agents based on activeFilter and searchTerm
   const filteredAgents = useMemo(() => {
@@ -604,6 +643,50 @@ const Dashboard: React.FC = () => {
       <div className="flex flex-col h-full">
         {/* Fixed Header Section */}
         <div className="flex-shrink-0 space-y-4 pb-4">
+          {/* View Filter Tabs */}
+          <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
+            <button
+              onClick={() => setViewFilter('all')}
+              className={`px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors border-b-2 ${
+                viewFilter === 'all'
+                  ? 'border-purple-500 text-purple-600 dark:text-purple-400'
+                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+              }`}
+            >
+              All
+            </button>
+            <button
+              onClick={() => setViewFilter('servers')}
+              className={`px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors border-b-2 ${
+                viewFilter === 'servers'
+                  ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+              }`}
+            >
+              MCP Servers Only
+            </button>
+            <button
+              onClick={() => setViewFilter('agents')}
+              className={`px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors border-b-2 ${
+                viewFilter === 'agents'
+                  ? 'border-cyan-500 text-cyan-600 dark:text-cyan-400'
+                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+              }`}
+            >
+              A2A Agents Only
+            </button>
+            <button
+              onClick={() => setViewFilter('external')}
+              className={`px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors border-b-2 ${
+                viewFilter === 'external'
+                  ? 'border-green-500 text-green-600 dark:text-green-400'
+                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+              }`}
+            >
+              External Registries
+            </button>
+          </div>
+
           {/* Search Bar and Refresh Button */}
           <div className="flex gap-4 items-center">
             <div className="relative flex-1">
@@ -653,7 +736,7 @@ const Dashboard: React.FC = () => {
         {/* Scrollable Content Area */}
         <div className="flex-1 overflow-y-auto min-h-0">
           {/* MCP Servers Section */}
-          {(filteredServers.length > 0 || (!searchTerm && activeFilter === 'all')) && (
+          {(viewFilter === 'all' || viewFilter === 'servers') && (filteredServers.length > 0 || (!searchTerm && activeFilter === 'all')) && (
             <div className="mb-8">
               <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
                 MCP Servers
@@ -703,7 +786,7 @@ const Dashboard: React.FC = () => {
           )}
 
           {/* A2A Agents Section */}
-          {(filteredAgents.length > 0 || (!searchTerm && activeFilter === 'all')) && (
+          {(viewFilter === 'all' || viewFilter === 'agents') && (filteredAgents.length > 0 || (!searchTerm && activeFilter === 'all')) && (
             <div className="mb-8">
               <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
                 A2A Agents
@@ -752,8 +835,54 @@ const Dashboard: React.FC = () => {
             </div>
           )}
 
+          {/* External Registries Section */}
+          {viewFilter === 'external' && (
+            <div className="mb-8">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+                External Registries
+              </h2>
+
+              {filteredExternalServers.length === 0 ? (
+                <div className="text-center py-12 bg-gray-50 dark:bg-gray-800 rounded-lg border border-dashed border-gray-300 dark:border-gray-600">
+                  <div className="text-gray-400 text-lg mb-2">
+                    {externalServers.length === 0 ? 'No External Registries Available' : 'No Results Found'}
+                  </div>
+                  <p className="text-gray-500 dark:text-gray-300 text-sm max-w-md mx-auto">
+                    {externalServers.length === 0
+                      ? 'External registry integrations (Anthropic, and more) will be available soon'
+                      : 'Try adjusting your search criteria'}
+                  </p>
+                </div>
+              ) : (
+                <div
+                  className="grid"
+                  style={{
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))',
+                    gap: 'clamp(1.5rem, 3vw, 2.5rem)'
+                  }}
+                >
+                  {filteredExternalServers.map((server) => (
+                    <ServerCard
+                      key={server.path}
+                      server={server}
+                      onToggle={handleToggleServer}
+                      onEdit={handleEditServer}
+                      canModify={user?.can_modify_servers || false}
+                      onRefreshSuccess={refreshData}
+                      onShowToast={showToast}
+                      onServerUpdate={handleServerUpdate}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Empty state when both are filtered out */}
-          {filteredServers.length === 0 && filteredAgents.length === 0 && (searchTerm || activeFilter !== 'all') && (
+          {((viewFilter === 'all' && filteredServers.length === 0 && filteredAgents.length === 0) ||
+            (viewFilter === 'servers' && filteredServers.length === 0) ||
+            (viewFilter === 'agents' && filteredAgents.length === 0)) &&
+           (searchTerm || activeFilter !== 'all') && (
             <div className="text-center py-16">
               <div className="text-gray-400 text-xl mb-4">No items found</div>
               <p className="text-gray-500 dark:text-gray-300 text-base max-w-md mx-auto">

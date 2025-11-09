@@ -33,14 +33,17 @@ def _path_to_filename(
     Convert agent path to safe filename.
 
     Args:
-        path: Agent path (e.g., /agents/code-reviewer)
+        path: Agent path (e.g., /code-reviewer)
 
     Returns:
-        Safe filename with .json extension
+        Safe filename with _agent.json extension
     """
     normalized = path.lstrip("/").replace("/", "_")
-    if not normalized.endswith(".json"):
-        normalized += ".json"
+    if not normalized.endswith("_agent.json"):
+        if normalized.endswith(".json"):
+            normalized = normalized.replace(".json", "_agent.json")
+        else:
+            normalized += "_agent.json"
     return normalized
 
 

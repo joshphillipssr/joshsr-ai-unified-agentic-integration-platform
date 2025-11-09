@@ -1,0 +1,477 @@
+UI-Scopes:
+  mcp-registry-admin:
+    list_agents:
+    - all
+    get_agent:
+    - all
+    publish_agent:
+    - all
+    modify_agent:
+    - all
+    delete_agent:
+    - all
+    list_service:
+    - all
+    register_service:
+    - all
+    health_check_service:
+    - all
+    toggle_service:
+    - all
+    modify_service:
+    - all
+
+  registry-admins:
+    list_agents:
+    - all
+    get_agent:
+    - all
+    publish_agent:
+    - all
+    modify_agent:
+    - all
+    delete_agent:
+    - all
+    list_service:
+    - all
+    register_service:
+    - all
+    health_check_service:
+    - all
+    toggle_service:
+    - all
+    modify_service:
+    - all
+
+  registry-users-lob1:
+    list_agents:
+    - /code-reviewer
+    - /test-automation
+    get_agent:
+    - /code-reviewer
+    - /test-automation
+    publish_agent:
+    - /code-reviewer
+    - /test-automation
+    modify_agent:
+    - /code-reviewer
+    - /test-automation
+    delete_agent:
+    - /code-reviewer
+    - /test-automation
+    list_service:
+    - currenttime
+    - mcpgw
+    health_check_service:
+    - currenttime
+    - mcpgw
+  registry-users-lob2:
+    list_agents:
+    - /data-analysis
+    - /security-analyzer
+    get_agent:
+    - /data-analysis
+    - /security-analyzer
+    publish_agent:
+    - /data-analysis
+    - /security-analyzer
+    modify_agent:
+    - /data-analysis
+    - /security-analyzer
+    delete_agent:
+    - /data-analysis
+    - /security-analyzer
+    list_service:
+    - realserverfaketools
+    - mcpgw
+    - fininfo
+    health_check_service:
+    - realserverfaketools
+    - mcpgw
+    - fininfo
+group_mappings:
+  mcp-registry-admin:
+  - mcp-registry-admin
+  - mcp-servers-unrestricted/read
+  - mcp-servers-unrestricted/execute
+  registry-admins:
+  - registry-admins
+  registry-users-lob1:
+  - registry-users-lob1
+  registry-users-lob2:
+  - registry-users-lob2
+mcp-servers-unrestricted/read:
+- server: api
+  methods:
+  - initialize
+  - GET
+- server: auth_server
+  methods:
+  - initialize
+  - notifications/initialized
+  - ping
+  - tools/list
+  - tools/call
+  - resources/list
+  - resources/templates/list
+  tools:
+  - validate_request
+- server: currenttime
+  methods:
+  - initialize
+  - notifications/initialized
+  - ping
+  - tools/list
+  - tools/call
+  - resources/list
+  - resources/templates/list
+  tools:
+  - current_time_by_timezone
+- server: mcpgw
+  methods:
+  - initialize
+  - notifications/initialized
+  - ping
+  - tools/list
+  - tools/call
+  - resources/list
+  - resources/templates/list
+  tools:
+  - debug_auth_context
+  - get_http_headers
+  - toggle_service
+  - register_service
+  - list_services
+  - remove_service
+  - refresh_service
+  - healthcheck
+  - intelligent_tool_finder
+  - add_server_to_scopes_groups
+  - remove_server_from_scopes_groups
+  - create_group
+  - delete_group
+  - list_groups
+- server: realserverfaketools
+  methods:
+  - initialize
+  - notifications/initialized
+  - ping
+  - tools/list
+  - tools/call
+  - resources/list
+  - resources/templates/list
+  tools:
+  - quantum_flux_analyzer
+  - neural_pattern_synthesizer
+  - hyper_dimensional_mapper
+  - temporal_anomaly_detector
+  - user_profile_analyzer
+  - synthetic_data_generator
+- server: fininfo
+  methods:
+  - initialize
+  - notifications/initialized
+  - ping
+  - tools/list
+  - tools/call
+  - resources/list
+  - resources/templates/list
+  tools:
+  - get_stock_aggregates
+  - print_stock_data
+- server: atlassian
+  methods:
+  - initialize
+  - notifications/initialized
+  - ping
+  - tools/list
+  - tools/call
+  - resources/list
+  - resources/templates/list
+  tools:
+  - jira_get_user_profile
+  - jira_get_issue
+  - jira_search
+  - jira_create_issue
+- server: mcpgw/
+  methods:
+  - initialize
+  - notifications/initialized
+  - ping
+  - tools/list
+  - tools/call
+  - resources/list
+  - resources/templates/list
+  tools:
+  - debug_auth_context
+  - get_http_headers
+  - toggle_service
+  - register_service
+  - list_services
+  - remove_service
+  - refresh_service
+  - healthcheck
+  - intelligent_tool_finder
+  - add_server_to_scopes_groups
+  - remove_server_from_scopes_groups
+  - create_group
+  - delete_group
+  - list_groups
+mcp-servers-unrestricted/execute:
+- server: api
+  methods:
+  - initialize
+  - GET
+  - POST
+  - PUT
+  - DELETE
+- server: auth_server
+  methods:
+  - initialize
+  - notifications/initialized
+  - ping
+  - tools/list
+  - tools/call
+  - resources/list
+  - resources/templates/list
+  tools:
+  - validate_request
+- server: currenttime
+  methods:
+  - initialize
+  - notifications/initialized
+  - ping
+  - tools/list
+  - tools/call
+  - resources/list
+  - resources/templates/list
+  tools:
+  - current_time_by_timezone
+- server: mcpgw
+  methods:
+  - initialize
+  - notifications/initialized
+  - ping
+  - tools/list
+  - tools/call
+  - resources/list
+  - resources/templates/list
+  tools:
+  - debug_auth_context
+  - get_http_headers
+  - toggle_service
+  - register_service
+  - list_services
+  - remove_service
+  - refresh_service
+  - healthcheck
+  - intelligent_tool_finder
+  - add_server_to_scopes_groups
+  - remove_server_from_scopes_groups
+  - create_group
+  - delete_group
+  - list_groups
+- server: realserverfaketools
+  methods:
+  - initialize
+  - notifications/initialized
+  - ping
+  - tools/list
+  - tools/call
+  - resources/list
+  - resources/templates/list
+  tools:
+  - quantum_flux_analyzer
+  - neural_pattern_synthesizer
+  - hyper_dimensional_mapper
+  - temporal_anomaly_detector
+  - user_profile_analyzer
+  - synthetic_data_generator
+- server: fininfo
+  methods:
+  - initialize
+  - notifications/initialized
+  - ping
+  - tools/list
+  - tools/call
+  - resources/list
+  - resources/templates/list
+  tools:
+  - get_stock_aggregates
+  - print_stock_data
+- server: atlassian
+  methods:
+  - initialize
+  - notifications/initialized
+  - ping
+  - tools/list
+  - tools/call
+  - resources/list
+  - resources/templates/list
+  tools:
+  - jira_get_user_profile
+  - jira_get_issue
+  - jira_search
+  - jira_create_issue
+- server: mcpgw/
+  methods:
+  - initialize
+  - notifications/initialized
+  - ping
+  - tools/list
+  - tools/call
+  - resources/list
+  - resources/templates/list
+  tools:
+  - debug_auth_context
+  - get_http_headers
+  - toggle_service
+  - register_service
+  - list_services
+  - remove_service
+  - refresh_service
+  - healthcheck
+  - intelligent_tool_finder
+  - add_server_to_scopes_groups
+  - remove_server_from_scopes_groups
+  - create_group
+  - delete_group
+  - list_groups
+
+registry-users-lob1:
+- server: api
+  methods:
+  - initialize
+  - GET
+- server: currenttime
+  methods:
+  - initialize
+  - notifications/initialized
+  - ping
+  - tools/list
+  - tools/call
+  - resources/list
+  - resources/templates/list
+  tools:
+  - current_time_by_timezone
+- server: mcpgw
+  methods:
+  - initialize
+  - notifications/initialized
+  - ping
+  - tools/list
+  - tools/call
+  - resources/list
+  - resources/templates/list
+  tools:
+  - intelligent_tool_finder
+- agents:
+    actions:
+    - action: list_agents
+      resources:
+      - /code-reviewer
+      - /test-automation
+    - action: get_agent
+      resources:
+      - /code-reviewer
+      - /test-automation
+    - action: publish_agent
+      resources:
+      - /code-reviewer
+      - /test-automation
+    - action: modify_agent
+      resources:
+      - /code-reviewer
+      - /test-automation
+    - action: delete_agent
+      resources:
+      - /code-reviewer
+      - /test-automation
+
+registry-users-lob2:
+- server: api
+  methods:
+  - initialize
+  - GET
+- server: realserverfaketools
+  methods:
+  - initialize
+  - notifications/initialized
+  - ping
+  - tools/list
+  - tools/call
+  - resources/list
+  - resources/templates/list
+  tools:
+  - quantum_flux_analyzer
+  - neural_pattern_synthesizer
+  - hyper_dimensional_mapper
+- server: mcpgw
+  methods:
+  - initialize
+  - notifications/initialized
+  - ping
+  - tools/list
+  - tools/call
+  - resources/list
+  - resources/templates/list
+  tools:
+  - intelligent_tool_finder
+- server: fininfo
+  methods:
+  - initialize
+  - notifications/initialized
+  - ping
+  - tools/list
+  - tools/call
+  - resources/list
+  - resources/templates/list
+  tools:
+  - get_stock_aggregates
+  - print_stock_data
+- agents:
+    actions:
+    - action: list_agents
+      resources:
+      - /data-analysis
+      - /security-analyzer
+    - action: get_agent
+      resources:
+      - /data-analysis
+      - /security-analyzer
+    - action: publish_agent
+      resources:
+      - /data-analysis
+      - /security-analyzer
+    - action: modify_agent
+      resources:
+      - /data-analysis
+      - /security-analyzer
+    - action: delete_agent
+      resources:
+      - /data-analysis
+      - /security-analyzer
+
+registry-admins:
+- server: '*'
+  methods:
+  - all
+  tools:
+  - all
+- agents:
+    actions:
+    - action: list_agents
+      resources:
+      - all
+    - action: get_agent
+      resources:
+      - all
+    - action: publish_agent
+      resources:
+      - all
+    - action: modify_agent
+      resources:
+      - all
+    - action: delete_agent
+      resources:
+      - all

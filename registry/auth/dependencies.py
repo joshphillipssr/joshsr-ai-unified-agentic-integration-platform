@@ -248,39 +248,79 @@ def user_has_ui_permission_for_service(permission: str, service_name: str, user_
 def get_accessible_services_for_user(user_ui_permissions: Dict[str, List[str]]) -> List[str]:
     """
     Get list of services the user can see based on their list_service permission.
-    
+
     Args:
         user_ui_permissions: User's UI permissions dict from get_ui_permissions_for_user()
-        
+
     Returns:
         List of service names the user can see, or ['all'] if they can see all services
     """
     list_permissions = user_ui_permissions.get('list_service', [])
-    
+
     if 'all' in list_permissions:
         return ['all']
-    
+
+    return list_permissions
+
+
+def get_accessible_agents_for_user(user_ui_permissions: Dict[str, List[str]]) -> List[str]:
+    """
+    Get list of agents the user can see based on their list_agents permission.
+
+    Args:
+        user_ui_permissions: User's UI permissions dict from get_ui_permissions_for_user()
+
+    Returns:
+        List of agent paths the user can see, or ['all'] if they can see all agents
+    """
+    list_permissions = user_ui_permissions.get('list_agents', [])
+
+    if 'all' in list_permissions:
+        return ['all']
+
     return list_permissions
 
 
 def get_servers_for_scope(scope: str) -> List[str]:
     """
     Get list of server names that a scope provides access to.
-    
+
     Args:
         scope: The scope to check (e.g., 'mcp-servers-restricted/read')
-        
+
     Returns:
         List of server names the scope grants access to
     """
     scope_config = SCOPES_CONFIG.get(scope, [])
     server_names = []
-    
+
     for server_config in scope_config:
         if isinstance(server_config, dict) and 'server' in server_config:
             server_names.append(server_config['server'])
-    
+
     return list(set(server_names))  # Remove duplicates
+
+
+def user_has_wildcard_access(user_scopes: List[str]) -> bool:
+    """
+    Check if user has wildcard access to all servers via their scopes.
+
+    A user has wildcard access if any of their scopes includes server: '*'.
+    This is determined dynamically from the scopes configuration, not hardcoded group names.
+
+    Args:
+        user_scopes: List of user's scopes
+
+    Returns:
+        True if user has wildcard access to all servers, False otherwise
+    """
+    for scope in user_scopes:
+        servers = get_servers_for_scope(scope)
+        if '*' in servers:
+            logger.debug(f"User scope '{scope}' grants wildcard access to all servers")
+            return True
+
+    return False
 
 
 def get_user_accessible_servers(user_scopes: List[str]) -> List[str]:
@@ -407,16 +447,19 @@ def enhanced_auth(
     
     # Get UI permissions
     ui_permissions = get_ui_permissions_for_user(scopes)
-    
+
     # Get accessible servers (from server scopes)
     accessible_servers = get_user_accessible_servers(scopes)
-    
+
     # Get accessible services (from UI permissions)
     accessible_services = get_accessible_services_for_user(ui_permissions)
-    
+
+    # Get accessible agents (from UI permissions)
+    accessible_agents = get_accessible_agents_for_user(ui_permissions)
+
     # Check modification permissions
     can_modify = user_can_modify_servers(groups, scopes)
-    
+
     user_context = {
         'username': username,
         'groups': groups,
@@ -425,11 +468,12 @@ def enhanced_auth(
         'provider': session_data.get('provider', 'local'),
         'accessible_servers': accessible_servers,
         'accessible_services': accessible_services,
+        'accessible_agents': accessible_agents,
         'ui_permissions': ui_permissions,
         'can_modify_servers': can_modify,
-        'is_admin': 'mcp-registry-admin' in groups
+        'is_admin': user_has_wildcard_access(scopes)
     }
-    
+
     logger.debug(f"Enhanced auth context for {username}: {user_context}")
     return user_context
 
@@ -483,6 +527,9 @@ def nginx_proxied_auth(
         # Get accessible services
         accessible_services = get_accessible_services_for_user(ui_permissions)
 
+        # Get accessible agents
+        accessible_agents = get_accessible_agents_for_user(ui_permissions)
+
         # Check modification permissions
         can_modify = user_can_modify_servers(groups, scopes)
 
@@ -494,9 +541,10 @@ def nginx_proxied_auth(
             'provider': 'keycloak',
             'accessible_servers': accessible_servers,
             'accessible_services': accessible_services,
+            'accessible_agents': accessible_agents,
             'ui_permissions': ui_permissions,
             'can_modify_servers': can_modify,
-            'is_admin': 'mcp-registry-admin' in groups
+            'is_admin': user_has_wildcard_access(scopes)
         }
 
         logger.debug(f"nginx-proxied auth context for {username}: {user_context}")

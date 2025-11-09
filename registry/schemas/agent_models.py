@@ -430,6 +430,24 @@ class AgentCard(BaseModel):
             )
         return v
 
+    @field_validator("tags", mode="before")
+    @classmethod
+    def _convert_tags_field(
+        cls,
+        v: Any,
+    ) -> List[str]:
+        """Convert tags from string or list format to list of strings.
+
+        Supports both:
+        - String format: "tag1,tag2,tag3"
+        - List format: ["tag1", "tag2", "tag3"]
+        """
+        if isinstance(v, str):
+            return [tag.strip() for tag in v.split(",") if tag.strip()]
+        if isinstance(v, list):
+            return [str(tag).strip() for tag in v if str(tag).strip()]
+        return []
+
     @field_validator("skills")
     @classmethod
     def _validate_skills_field(
