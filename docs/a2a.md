@@ -312,25 +312,6 @@ Continues with confidence in code quality
 - **[Scopes Configuration](../auth_server/scopes.yml)** - Permission definitions
 - **[LLM Navigation Guide](llms.txt#section-45)** - For AI systems understanding implementation
 
-## Roadmap
-
-Current A2A capabilities:
-- ✅ Agent registration and lifecycle management
-- ✅ Agent discovery with access control
-- ✅ Keycloak-based authentication
-- ✅ Fine-grained permissions per group
-- ✅ Agent state management
-- ✅ Comprehensive testing infrastructure
-- ✅ Audit trails via logging
-
-Future enhancements:
-- Agent-to-agent communication protocols
-- Capability matching and discovery algorithms
-- Agent reputation systems
-- Advanced permission hierarchies
-- Agent health monitoring
-- Multi-registry federation
-
 ## Support
 
 For issues or questions:
