@@ -73,10 +73,15 @@ The **MCP Gateway & Registry** is an enterprise-ready platform that centralizes 
 ## MCP Tools in Action
 
 <div align="center">
-<img src="docs/img/MCP_tools.gif" alt="MCP Tools Demo" width="800"/>
+<video width="800" controls>
+  <source src="docs/img/MCP-Gateway-Registry-vidcast.mp4" type="video/mp4">
+  Your browser does not support the video tag.
+</video>
 </div>
 
-*Experience dynamic tool discovery and intelligent MCP server integration in real-time*
+*Watch how MCP Servers, A2A Agents, and External Registries work together for dynamic tool discovery*
+
+[View MCP Tools Demo GIF](docs/img/MCP_tools.gif)
 
 ---
 
