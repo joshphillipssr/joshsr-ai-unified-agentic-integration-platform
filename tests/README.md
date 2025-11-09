@@ -220,27 +220,6 @@ If LOB bot tests fail, verify:
 
 See [lob-bot-access-control-testing.md](lob-bot-access-control-testing.md) for troubleshooting.
 
-## CI/CD Integration
-
-Example GitHub Actions workflow:
-
-```yaml
-name: Test Suite
-on: [pull_request]
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Start services
-        run: docker-compose up -d
-      - name: Wait for services
-        run: sleep 30
-      - name: Run tests
-        run: ./tests/run_all_tests.sh --skip-production
-```
-
 ## Next Steps
 
 ### For New Developers
