@@ -144,7 +144,7 @@ Interactive terminal interface for chatting with AI models and discovering MCP t
 
 ## A2A Agents - Example Implementations
 
-The registry includes two example A2A agents built with [Amazon Bedrock AgentCore](https://docs.aws.amazon.com/bedrock/latest/userguide/agentcore-setup.html) and the [Strands framework](https://docs.strands-ai.com/). These agents demonstrate how to implement, register, and discover agents through the unified Agent Registry.
+The registry includes two example A2A agents that demonstrate how both human developers and autonomous AI agents can discover, register, and use agents through the unified Agent Registry. Agents can programmatically discover other agents via semantic search and use them through the A2A protocol, enabling dynamic agent composition and autonomous agent orchestration.
 
 ### Example Agents
 
@@ -153,44 +153,13 @@ The registry includes two example A2A agents built with [Amazon Bedrock AgentCor
 | **Travel Assistant Agent** | `/travel-assistant-agent` | Flight search, pricing checks, recommendations, trip planning |
 | **Flight Booking Agent** | `/flight-booking-agent` | Availability checks, flight reservations, payments, reservation management |
 
-### Getting Started with A2A Agents
+### Agent Discovery
 
-**1. Deploy Local Agents (Docker)**
-```bash
-# From repo root
-agents/a2a/deploy_local.sh
+**View in Registry UI:**
+Open the registry and navigate to the **A2A Agents** tab to browse registered agents with their full metadata, capabilities, and skills.
 
-# Or from agents/a2a directory
-cd agents/a2a
-./deploy_local.sh --help
-```
-
-Agents will be available at:
-- Travel Assistant: `http://localhost:9001`
-- Flight Booking: `http://localhost:9002`
-
-**2. Register Agents with Registry**
-
-```bash
-# Register Travel Assistant Agent
-cli/agent_mgmt.sh register agents/a2a/test/travel_assistant_agent_card.json
-
-# Register Flight Booking Agent
-cli/agent_mgmt.sh register agents/a2a/test/flight_booking_agent_card.json
-```
-
-**3. View Agents in Registry UI**
-
-Open the registry UI and navigate to the **A2A Agents** tab to see your registered agents with full metadata including:
-- Agent name and description
-- Available tools and capabilities
-- API endpoints and communication methods
-- Input/output schemas
-- Trust level and authentication schemes
-
-**4. Search for Agents**
-
-Use the semantic search API to discover agents by natural language:
+**Search via Semantic API:**
+Agents and developers can search for agents by natural language description:
 
 ```bash
 # Search for agents that can help book a trip
@@ -208,33 +177,9 @@ Flight Booking Agent                     | /flight-booking-agent     |  1.2134
 --------------------------------------------------------------------------------------------------------------
 ```
 
-**5. Deploy to AgentCore Runtime (AWS)**
+**Agent Cards:** View the agent card metadata at [agents/a2a/test/](agents/a2a/test/) to see the complete agent definitions including skills, protocols, and capabilities.
 
-For production deployments on AWS:
-```bash
-# From agents/a2a directory
-./deploy_live.sh
-```
-
-This deploys agents to managed AWS AgentCore infrastructure with automatic scaling.
-
-### Agent Source Code
-
-The complete agent implementations are available in `agents/a2a/`:
-- Source code: `agents/a2a/src/`
-- Deployment scripts: `agents/a2a/deploy_local.sh`, `agents/a2a/deploy_live.sh`
-- Agent cards:
-  - [agents/a2a/test/flight_booking_agent_card.json](agents/a2a/test/flight_booking_agent_card.json) - Flight Booking agent metadata with skills
-  - [agents/a2a/test/travel_assistant_agent_card.json](agents/a2a/test/travel_assistant_agent_card.json) - Travel Assistant agent metadata with skills
-- Tests: `agents/a2a/test/simple_agents_test.py`
-
-**View Agent Cards:** You can inspect the agent card JSON files directly to see the complete agent metadata including:
-- Agent name, description, and version
-- Available skills and their descriptions
-- Protocol version and supported transport modes
-- Default input/output modes and capabilities
-
-For comprehensive deployment and testing documentation, see [agents/a2a/README.md](agents/a2a/README.md).
+For complete agent deployment and testing documentation, see [agents/a2a/README.md](agents/a2a/README.md).
 
 ---
 
