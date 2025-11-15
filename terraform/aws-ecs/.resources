@@ -1,0 +1,27 @@
+# ECS Resources Configuration
+# Generated: Fri Nov 14 03:37:06 UTC 2025
+
+ECS_CLUSTER_NAME=mcp-gateway-ecs-cluster
+ECS_CLUSTER_ARN=arn:aws:ecs:us-east-1:605134468121:cluster/mcp-gateway-ecs-cluster
+AWS_REGION=us-east-1
+
+# ECS Services Log Groups
+LOG_GROUP_AUTH=/ecs/mcp-gateway-auth-server
+LOG_GROUP_REGISTRY=/ecs/mcp-gateway-registry
+LOG_GROUP_KEYCLOAK=/ecs/mcp-gateway-keycloak
+
+# ALB Information
+ALB_REGISTRY_DNS=mcp-gateway-alb-608842056.us-east-1.elb.amazonaws.com
+ALB_KEYCLOAK_DNS=mcp-gateway-kc-alb-948954215.us-east-1.elb.amazonaws.com
+
+# URLs
+REGISTRY_URL=https://mcp-gateway-alb-608842056.us-east-1.elb.amazonaws.com
+AUTH_URL=https://mcp-gateway-alb-608842056.us-east-1.elb.amazonaws.com:8888
+KEYCLOAK_URL=https://mcp-gateway-kc-alb-948954215.us-east-1.elb.amazonaws.com/
+
+# VPC and Networking
+VPC_ID=vpc-0a07bdf2c4564abde
+
+# Deployment Status
+MONITORING_ENABLED=true
+HTTPS_ENABLED=true
