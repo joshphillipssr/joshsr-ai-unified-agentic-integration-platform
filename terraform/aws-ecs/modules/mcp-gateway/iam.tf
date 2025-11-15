@@ -12,10 +12,10 @@ resource "aws_iam_policy" "ecs_secrets_access" {
         Action = [
           "secretsmanager:GetSecretValue"
         ]
-        Resource = concat([
+        Resource = [
           aws_secretsmanager_secret.secret_key.arn,
-          aws_secretsmanager_secret.admin_password.arn,
-        ], local.keycloak_secret_arns)
+          aws_secretsmanager_secret.admin_password.arn
+        ]
       }
     ]
   })

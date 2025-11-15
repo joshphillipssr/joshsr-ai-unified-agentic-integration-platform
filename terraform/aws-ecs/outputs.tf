@@ -43,10 +43,6 @@ output "mcp_gateway_auth_url" {
   value       = module.mcp_gateway.service_urls.auth
 }
 
-output "mcp_gateway_keycloak_url" {
-  description = "MCP Gateway Keycloak URL"
-  value       = module.mcp_gateway.service_urls.keycloak
-}
 
 output "mcp_gateway_alb_dns" {
   description = "MCP Gateway ALB DNS name"

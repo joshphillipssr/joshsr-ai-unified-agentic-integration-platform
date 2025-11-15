@@ -50,12 +50,6 @@ variable "auth_server_image_uri" {
   default     = "mcpgateway/auth-server:latest"
 }
 
-variable "keycloak_image_uri" {
-  description = "Container image URI for Keycloak service (defaults to official Keycloak image, mirrored at mcpgateway/keycloak)"
-  type        = string
-  default     = "mcpgateway/keycloak:latest"
-}
-
 variable "dockerhub_org" {
   description = "Docker Hub organization for pre-built images"
   type        = string
@@ -100,53 +94,6 @@ variable "auth_replicas" {
   }
 }
 
-variable "keycloak_replicas" {
-  description = "Number of replicas for Keycloak service"
-  type        = number
-  default     = 1
-  validation {
-    condition     = var.keycloak_replicas > 0
-    error_message = "Keycloak replicas must be greater than 0."
-  }
-}
-
-# Database Configuration (Keycloak only)
-variable "postgres_version" {
-  description = "PostgreSQL engine version to use"
-  type        = string
-  default     = "15.5"
-}
-
-variable "keycloak_postgres_min_capacity" {
-  description = "Minimum ACU capacity for Keycloak PostgreSQL Serverless v2"
-  type        = number
-  default     = 0.5
-}
-
-variable "keycloak_postgres_max_capacity" {
-  description = "Maximum ACU capacity for Keycloak PostgreSQL Serverless v2"
-  type        = number
-  default     = 1.0
-}
-
-variable "keycloak_db_name" {
-  description = "Database name for Keycloak"
-  type        = string
-  default     = "keycloak"
-}
-
-variable "keycloak_db_username" {
-  description = "Database username for Keycloak"
-  type        = string
-  default     = "keycloak"
-}
-
-variable "keycloak_admin_username" {
-  description = "Keycloak admin username"
-  type        = string
-  default     = "admin"
-}
-
 # ALB Configuration
 variable "alb_scheme" {
   description = "Scheme for the ALB (internal or internet-facing)"
@@ -162,35 +109,6 @@ variable "ingress_cidr_blocks" {
   description = "List of CIDR blocks allowed to access the ALB (main ALB + auth server + registry)"
   type        = list(string)
   default     = ["71.114.44.148/32", "44.192.72.20/32"]
-}
-
-# Keycloak Configuration
-variable "keycloak_url" {
-  description = "Keycloak server URL (deprecated - now uses internal ALB automatically)"
-  type        = string
-  default     = ""
-}
-
-variable "keycloak_alb_scheme" {
-  description = "Scheme for the Keycloak ALB (internal or internet-facing)"
-  type        = string
-  default     = "internet-facing"
-  validation {
-    condition     = contains(["internal", "internet-facing"], var.keycloak_alb_scheme)
-    error_message = "Keycloak ALB scheme must be either 'internal' or 'internet-facing'."
-  }
-}
-
-variable "keycloak_ingress_cidr" {
-  description = "CIDR block allowed to access Keycloak ALB (primary - usually laptop IP)"
-  type        = string
-  default     = "71.114.44.148/32"
-}
-
-variable "keycloak_ingress_cidr_ec2" {
-  description = "Additional CIDR block for EC2 instance to access Keycloak ALB"
-  type        = string
-  default     = "44.192.72.20/32"
 }
 
 variable "certificate_arn" {
@@ -239,44 +157,6 @@ variable "alarm_email" {
   description = "Email address for CloudWatch alarm notifications"
   type        = string
   default     = ""
-}
-
-variable "keycloak_external_url" {
-  description = "External Keycloak URL accessible from browsers"
-  type        = string
-  default     = ""
-}
-
-variable "keycloak_realm" {
-  description = "Keycloak realm name"
-  type        = string
-  default     = "mcp-gateway"
-}
-
-variable "keycloak_client_id" {
-  description = "Keycloak client ID for web application"
-  type        = string
-  default     = "mcp-gateway-web"
-}
-
-variable "keycloak_client_secret" {
-  description = "Keycloak client secret for web application"
-  type        = string
-  default     = ""
-  sensitive   = true
-}
-
-variable "keycloak_m2m_client_id" {
-  description = "Keycloak machine-to-machine client ID"
-  type        = string
-  default     = "mcp-gateway-m2m"
-}
-
-variable "keycloak_m2m_client_secret" {
-  description = "Keycloak machine-to-machine client secret"
-  type        = string
-  default     = ""
-  sensitive   = true
 }
 
 # EFS Configuration
