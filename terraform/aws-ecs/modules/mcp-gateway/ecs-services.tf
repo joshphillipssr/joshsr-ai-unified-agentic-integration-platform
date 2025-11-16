@@ -89,6 +89,10 @@ module "ecs_service_auth" {
           value = "https://${var.domain_name}"
         },
         {
+          name  = "AUTH_SERVER_URL"
+          value = "http://auth-server:8888"
+        },
+        {
           name  = "AUTH_SERVER_EXTERNAL_URL"
           value = "https://${var.domain_name}:8888"
         },
@@ -115,6 +119,10 @@ module "ecs_service_auth" {
         {
           name  = "KEYCLOAK_CLIENT_ID"
           value = "mcp-gateway-web"
+        },
+        {
+          name  = "SCOPES_CONFIG_PATH"
+          value = "/efs/auth_config/scopes.yml"
         }
       ]
 
@@ -133,6 +141,11 @@ module "ecs_service_auth" {
         {
           sourceVolume  = "mcp-logs"
           containerPath = "/app/logs"
+          readOnly      = false
+        },
+        {
+          sourceVolume  = "auth-config"
+          containerPath = "/efs/auth_config"
           readOnly      = false
         }
       ]
@@ -156,6 +169,13 @@ module "ecs_service_auth" {
       efs_volume_configuration = {
         file_system_id     = module.efs.id
         access_point_id    = module.efs.access_points["logs"].id
+        transit_encryption = "ENABLED"
+      }
+    }
+    auth-config = {
+      efs_volume_configuration = {
+        file_system_id     = module.efs.id
+        access_point_id    = module.efs.access_points["auth_config"].id
         transit_encryption = "ENABLED"
       }
     }

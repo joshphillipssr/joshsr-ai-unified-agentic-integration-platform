@@ -242,9 +242,24 @@ cd scripts
 - Users: `admin`, `testuser`
 - Service account: `service-account-mcp-gateway-m2m`
 
-**⚠️ IMPORTANT:** You must complete this step before creating additional users in Step 3, as it creates the required groups.
+**⚠️ IMPORTANT:** You must complete this step before creating additional users in Step 4, as it creates the required groups.
 
-### **Step 3: Create M2M Admin Bot Account**
+### **Step 3: Copy Auth Server Configuration to EFS**
+```bash
+# Copy scopes.yml to EFS for runtime configuration
+# This allows updating scopes without rebuilding the auth server image
+./copy-scopes-to-efs.sh
+```
+
+**What this does:**
+- Mounts the EFS file system temporarily
+- Copies `auth_server/scopes.yml` to EFS at `/auth_config/scopes.yml`
+- Makes the file available to auth server containers at runtime
+- Allows scope updates without image rebuilds
+
+**Note:** The auth server will automatically use the EFS-mounted scopes.yml file. If the file doesn't exist on EFS, it falls back to the version baked into the Docker image.
+
+### **Step 4: Create M2M Admin Bot Account**
 ```bash
 # Create a generic M2M admin bot for server management
 # The script automatically loads Keycloak URL and credentials
@@ -259,7 +274,7 @@ cd scripts
 - `.oauth-tokens/registry-admin-bot-token.json` - Access token
 - `.oauth-tokens/registry-admin-bot.env` - Environment variables
 
-### **Step 4: Register MCP Servers**
+### **Step 5: Register MCP Servers**
 
 #### **Example: Register Cloudflare Documentation Server**
 ```bash
@@ -285,7 +300,7 @@ Then register:
 ./service_mgmt.sh add /path/to/your-server-config.json
 ```
 
-### **Step 5: Create Additional Users**
+### **Step 6: Create Additional Users**
 
 #### **Create M2M Service Account**
 ```bash
@@ -307,7 +322,7 @@ Then register:
   --groups 'mcp-servers-restricted/read'
 ```
 
-### **Step 6: Verify Deployment**
+### **Step 7: Verify Deployment**
 
 #### **Test Keycloak Login**
 ```bash
@@ -352,6 +367,84 @@ export KEYCLOAK_URL="https://kc.mycorp.click"
 export GATEWAY_URL="https://registry.mycorp.click"
 export KEYCLOAK_ADMIN_PASSWORD="your-password"
 ```
+
+## 🐍 Python Registry Client (Alternative to Bash)
+
+For programmatic access or Python-based workflows, use the type-safe Python client located in `scripts/`:
+
+### **Installation**
+```bash
+cd scripts
+uv pip install -r requirements.txt
+```
+
+### **Quick Examples**
+
+#### **Register a Server**
+```bash
+uv run python registry_management.py register --config server-config.json
+```
+
+#### **List All Servers**
+```bash
+uv run python registry_management.py list
+```
+
+#### **Toggle Server Status**
+```bash
+uv run python registry_management.py toggle --path /cloudflare-docs
+```
+
+#### **Health Check**
+```bash
+uv run python registry_management.py healthcheck
+```
+
+#### **Group Management**
+```bash
+# Add server to groups
+uv run python registry_management.py add-to-groups --server my-server --groups finance,analytics
+
+# List all groups
+uv run python registry_management.py list-groups
+```
+
+### **Using as a Library**
+```python
+import subprocess
+from registry_client import RegistryClient, InternalServiceRegistration
+
+# Get token
+result = subprocess.run(
+    ["./get-m2m-token.sh", "registry-admin-bot"],
+    capture_output=True, text=True, check=True
+)
+token = result.stdout.strip()
+
+# Create client
+client = RegistryClient(
+    registry_url="https://registry.mycorp.click",
+    token=token
+)
+
+# Register server
+registration = InternalServiceRegistration(
+    service_path="/my-server",
+    name="My MCP Server",
+    proxy_pass_url="https://my-server.example.com/mcp",
+    supported_transports=["streamable-http"]
+)
+client.register_service(registration)
+```
+
+### **Key Features**
+- **Type Safety**: Full Pydantic models for all API operations
+- **Token Management**: Automatic JWT retrieval with SSM caching
+- **Security**: Tokens redacted in logs (shows only first 8 characters)
+- **CLI & Library**: Use as command-line tool or import as Python library
+
+### **Documentation**
+See [scripts/PYTHON_CLIENT_README.md](scripts/PYTHON_CLIENT_README.md) for complete documentation.
 
 ## 🔄 Updates and Maintenance
 

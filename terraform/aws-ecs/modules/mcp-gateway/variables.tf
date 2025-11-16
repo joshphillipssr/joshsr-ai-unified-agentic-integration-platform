@@ -108,7 +108,7 @@ variable "alb_scheme" {
 variable "ingress_cidr_blocks" {
   description = "List of CIDR blocks allowed to access the ALB (main ALB + auth server + registry)"
   type        = list(string)
-  default     = ["71.114.44.148/32", "44.192.72.20/32"]
+  default     = ["0.0.0.0/0"]
 }
 
 variable "certificate_arn" {

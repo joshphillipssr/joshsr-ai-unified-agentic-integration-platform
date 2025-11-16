@@ -27,6 +27,7 @@ NC='\033[0m'
 AWS_REGION="us-west-2"
 REALM="mcp-gateway"
 CLIENT_NAME="${1:-registry-admin-bot}"
+ORIGINAL_CLIENT_NAME="${CLIENT_NAME}"
 SSM_TOKEN_PARAM="/keycloak/clients/${CLIENT_NAME}/jwt_token"
 EXPIRATION_BUFFER=60  # Refresh token if expires within 60 seconds
 
@@ -49,20 +50,33 @@ is_token_expired() {
 # Step 1: Try to get cached token from SSM Parameter Store
 echo -e "${YELLOW}Step 1: Checking SSM Parameter Store for cached token...${NC}" >&2
 
-CACHED_TOKEN_JSON=$(aws ssm get-parameter \
+# Get the SSM parameter value (which is a JSON string)
+# Try the original client name first
+SSM_PARAM_VALUE=$(aws ssm get-parameter \
     --name "$SSM_TOKEN_PARAM" \
     --with-decryption \
-    --query 'Parameter.Value' \
-    --output text \
-    --region "$AWS_REGION" 2>/dev/null || echo "")
+    --region "$AWS_REGION" 2>/dev/null | jq -r '.Parameter.Value // empty' 2>/dev/null || echo "")
 
-if [ -n "$CACHED_TOKEN_JSON" ] && [ "$CACHED_TOKEN_JSON" != "null" ]; then
-    echo -e "${GREEN}Found cached token in SSM${NC}" >&2
+# If not found, try with service-account- prefix
+if [ -z "$SSM_PARAM_VALUE" ] || [ "$SSM_PARAM_VALUE" = "null" ]; then
+    SSM_TOKEN_PARAM_ALT="/keycloak/clients/service-account-${ORIGINAL_CLIENT_NAME}/jwt_token"
+    SSM_PARAM_VALUE=$(aws ssm get-parameter \
+        --name "$SSM_TOKEN_PARAM_ALT" \
+        --with-decryption \
+        --region "$AWS_REGION" 2>/dev/null | jq -r '.Parameter.Value // empty' 2>/dev/null || echo "")
+    if [ -n "$SSM_PARAM_VALUE" ] && [ "$SSM_PARAM_VALUE" != "null" ]; then
+        # Use the alternate parameter name for storing the token later
+        SSM_TOKEN_PARAM="$SSM_TOKEN_PARAM_ALT"
+    fi
+fi
 
-    # Parse the cached token
-    CACHED_ACCESS_TOKEN=$(echo "$CACHED_TOKEN_JSON" | jq -r '.access_token // empty' 2>/dev/null)
-    CACHED_EXPIRES_AT=$(echo "$CACHED_TOKEN_JSON" | jq -r '.expires_at // empty' 2>/dev/null)
-    CACHED_EXPIRES_IN=$(echo "$CACHED_TOKEN_JSON" | jq -r '.expires_in // 300' 2>/dev/null)
+if [ -n "$SSM_PARAM_VALUE" ] && [ "$SSM_PARAM_VALUE" != "null" ]; then
+    echo -e "${GREEN}Found cached token in SSM at $SSM_TOKEN_PARAM${NC}" >&2
+
+    # Parse the JSON value (Parameter.Value is itself a JSON string)
+    CACHED_ACCESS_TOKEN=$(echo "$SSM_PARAM_VALUE" | jq -r '.access_token // empty' 2>/dev/null)
+    CACHED_EXPIRES_AT=$(echo "$SSM_PARAM_VALUE" | jq -r '.expires_at // empty' 2>/dev/null)
+    CACHED_EXPIRES_IN=$(echo "$SSM_PARAM_VALUE" | jq -r '.expires_in // 300' 2>/dev/null)
 
     if [ -n "$CACHED_ACCESS_TOKEN" ] && [ -n "$CACHED_EXPIRES_AT" ]; then
         # Check if token is still valid
@@ -108,9 +122,7 @@ echo "Keycloak URL: $KEYCLOAK_URL" >&2
 KEYCLOAK_ADMIN_PASSWORD=$(aws ssm get-parameter \
     --name "/keycloak/admin_password" \
     --with-decryption \
-    --query 'Parameter.Value' \
-    --output text \
-    --region "$AWS_REGION" 2>/dev/null)
+    --region "$AWS_REGION" 2>/dev/null | jq -r '.Parameter.Value // empty' 2>/dev/null)
 
 if [ -z "$KEYCLOAK_ADMIN_PASSWORD" ] || [ "$KEYCLOAK_ADMIN_PASSWORD" = "null" ]; then
     echo -e "${RED}Error: Could not retrieve Keycloak admin password from SSM${NC}" >&2
@@ -134,10 +146,22 @@ fi
 echo -e "${GREEN}Admin token obtained${NC}" >&2
 
 # Get client UUID
+# Try with the provided name first, then try with service-account- prefix
 echo "Looking up client UUID..." >&2
 CLIENT_UUID=$(curl -s -H "Authorization: Bearer ${ADMIN_TOKEN}" \
     "${KEYCLOAK_URL}/admin/realms/${REALM}/clients?clientId=${CLIENT_NAME}" 2>/dev/null | \
     jq -r 'if type == "array" then (.[0].id // empty) else empty end' 2>/dev/null)
+
+# If not found, try with service-account- prefix (Keycloak's naming convention for service accounts)
+if [ -z "$CLIENT_UUID" ]; then
+    echo "Client '${CLIENT_NAME}' not found, trying 'service-account-${CLIENT_NAME}'..." >&2
+    CLIENT_NAME="service-account-${CLIENT_NAME}"
+    # Update SSM parameter path to match the actual client name
+    SSM_TOKEN_PARAM="/keycloak/clients/${CLIENT_NAME}/jwt_token"
+    CLIENT_UUID=$(curl -s -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+        "${KEYCLOAK_URL}/admin/realms/${REALM}/clients?clientId=${CLIENT_NAME}" 2>/dev/null | \
+        jq -r 'if type == "array" then (.[0].id // empty) else empty end' 2>/dev/null)
+fi
 
 if [ -z "$CLIENT_UUID" ]; then
     echo -e "${RED}Error: Client '${CLIENT_NAME}' not found${NC}" >&2
@@ -206,7 +230,7 @@ aws ssm put-parameter \
     --value "$TOKEN_JSON" \
     --type "SecureString" \
     --overwrite \
-    --region "$AWS_REGION" 2>/dev/null
+    --region "$AWS_REGION" >/dev/null 2>&1
 
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}Token stored in SSM: $SSM_TOKEN_PARAM${NC}" >&2
