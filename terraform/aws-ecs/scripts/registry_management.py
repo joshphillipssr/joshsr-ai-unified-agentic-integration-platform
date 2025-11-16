@@ -569,16 +569,76 @@ def cmd_agent_register(args: argparse.Namespace) -> int:
             config = json.load(f)
 
         # Convert skills list of dicts to Skill objects
-        skills = [Skill(**skill) for skill in config.get('skills', [])]
+        # Handle both 'input_schema' and 'parameters' field names
+        skills = []
+        for skill_data in config.get('skills', []):
+            # Normalize field names
+            skill_dict = {
+                'name': skill_data.get('name', skill_data.get('id', '')),
+                'description': skill_data.get('description', '')
+            }
+            # Use 'input_schema' if present, otherwise use 'parameters'
+            if 'input_schema' in skill_data:
+                skill_dict['input_schema'] = skill_data['input_schema']
+            elif 'parameters' in skill_data:
+                skill_dict['input_schema'] = skill_data['parameters']
+
+            skills.append(Skill(**skill_dict))
         config['skills'] = skills
 
-        # Convert provider string to enum
+        # Convert provider string to enum with validation
         if 'provider' in config:
-            config['provider'] = AgentProvider(config['provider'])
+            provider_value = config['provider'].lower()
+            # Map common values to valid enum values
+            provider_map = {
+                'anthropic': AgentProvider.ANTHROPIC,
+                'custom': AgentProvider.CUSTOM,
+                'other': AgentProvider.OTHER,
+                'example corp': AgentProvider.CUSTOM,
+                'example': AgentProvider.CUSTOM
+            }
+
+            if provider_value in provider_map:
+                config['provider'] = provider_map[provider_value]
+            else:
+                logger.warning(f"Unknown provider '{config['provider']}', using 'custom'")
+                config['provider'] = AgentProvider.CUSTOM
 
         # Convert visibility string to enum if present
         if 'visibility' in config:
-            config['visibility'] = AgentVisibility(config['visibility'])
+            try:
+                config['visibility'] = AgentVisibility(config['visibility'].lower())
+            except ValueError:
+                logger.warning(f"Unknown visibility '{config['visibility']}', using 'public'")
+                config['visibility'] = AgentVisibility.PUBLIC
+
+        # Handle security_schemes conversion
+        # Map common OpenAPI security types to our enum
+        if 'security_schemes' in config:
+            transformed_schemes = {}
+            for scheme_name, scheme_data in config['security_schemes'].items():
+                scheme_type = scheme_data.get('type', '').lower()
+                # Map OpenAPI types to our enum values
+                type_map = {
+                    'http': 'bearer',  # HTTP bearer auth
+                    'bearer': 'bearer',
+                    'apikey': 'api_key',
+                    'api_key': 'api_key',
+                    'oauth2': 'oauth2'
+                }
+                mapped_type = type_map.get(scheme_type, 'bearer')
+                transformed_schemes[scheme_name] = {
+                    'type': mapped_type,
+                    'description': scheme_data.get('description', '')
+                }
+            config['security_schemes'] = transformed_schemes
+
+        # Remove fields that aren't in AgentRegistration model
+        valid_fields = {
+            'name', 'description', 'path', 'url', 'version', 'provider',
+            'security_schemes', 'skills', 'tags', 'visibility', 'license'
+        }
+        config = {k: v for k, v in config.items() if k in valid_fields}
 
         agent = AgentRegistration(**config)
         client = _create_client()
@@ -599,6 +659,7 @@ def cmd_agent_register(args: argparse.Namespace) -> int:
 
     except Exception as e:
         logger.error(f"Agent registration failed: {e}")
+        logger.debug(f"Full error details:", exc_info=True)
         return 1
 
 
@@ -697,16 +758,69 @@ def cmd_agent_update(args: argparse.Namespace) -> int:
             config = json.load(f)
 
         # Convert skills list of dicts to Skill objects
-        skills = [Skill(**skill) for skill in config.get('skills', [])]
+        # Handle both 'input_schema' and 'parameters' field names
+        skills = []
+        for skill_data in config.get('skills', []):
+            skill_dict = {
+                'name': skill_data.get('name', skill_data.get('id', '')),
+                'description': skill_data.get('description', '')
+            }
+            if 'input_schema' in skill_data:
+                skill_dict['input_schema'] = skill_data['input_schema']
+            elif 'parameters' in skill_data:
+                skill_dict['input_schema'] = skill_data['parameters']
+            skills.append(Skill(**skill_dict))
         config['skills'] = skills
 
-        # Convert provider string to enum
+        # Convert provider string to enum with validation
         if 'provider' in config:
-            config['provider'] = AgentProvider(config['provider'])
+            provider_value = config['provider'].lower()
+            provider_map = {
+                'anthropic': AgentProvider.ANTHROPIC,
+                'custom': AgentProvider.CUSTOM,
+                'other': AgentProvider.OTHER,
+                'example corp': AgentProvider.CUSTOM,
+                'example': AgentProvider.CUSTOM
+            }
+            if provider_value in provider_map:
+                config['provider'] = provider_map[provider_value]
+            else:
+                logger.warning(f"Unknown provider '{config['provider']}', using 'custom'")
+                config['provider'] = AgentProvider.CUSTOM
 
         # Convert visibility string to enum if present
         if 'visibility' in config:
-            config['visibility'] = AgentVisibility(config['visibility'])
+            try:
+                config['visibility'] = AgentVisibility(config['visibility'].lower())
+            except ValueError:
+                logger.warning(f"Unknown visibility '{config['visibility']}', using 'public'")
+                config['visibility'] = AgentVisibility.PUBLIC
+
+        # Handle security_schemes conversion
+        if 'security_schemes' in config:
+            transformed_schemes = {}
+            for scheme_name, scheme_data in config['security_schemes'].items():
+                scheme_type = scheme_data.get('type', '').lower()
+                type_map = {
+                    'http': 'bearer',
+                    'bearer': 'bearer',
+                    'apikey': 'api_key',
+                    'api_key': 'api_key',
+                    'oauth2': 'oauth2'
+                }
+                mapped_type = type_map.get(scheme_type, 'bearer')
+                transformed_schemes[scheme_name] = {
+                    'type': mapped_type,
+                    'description': scheme_data.get('description', '')
+                }
+            config['security_schemes'] = transformed_schemes
+
+        # Remove fields that aren't in AgentRegistration model
+        valid_fields = {
+            'name', 'description', 'path', 'url', 'version', 'provider',
+            'security_schemes', 'skills', 'tags', 'visibility', 'license'
+        }
+        config = {k: v for k, v in config.items() if k in valid_fields}
 
         agent = AgentRegistration(**config)
         client = _create_client()
@@ -717,6 +831,7 @@ def cmd_agent_update(args: argparse.Namespace) -> int:
 
     except Exception as e:
         logger.error(f"Agent update failed: {e}")
+        logger.debug(f"Full error details:", exc_info=True)
         return 1
 
 
