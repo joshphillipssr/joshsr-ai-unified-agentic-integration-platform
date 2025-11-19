@@ -19,7 +19,7 @@ from enum import Enum
 from datetime import datetime
 
 import requests
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field, HttpUrl, ConfigDict
 
 # Configure logging
 logging.basicConfig(
@@ -53,7 +53,7 @@ class ServiceRegistration(BaseModel):
 class InternalServiceRegistration(BaseModel):
     """Internal service registration model (Admin/M2M registration)."""
 
-    service_path: str = Field(..., description="Service path (e.g., /cloudflare-docs)")
+    service_path: str = Field(..., alias="path", description="Service path (e.g., /cloudflare-docs)")
     name: Optional[str] = Field(None, description="Service name")
     description: Optional[str] = Field(None, description="Service description")
     proxy_pass_url: Optional[str] = Field(None, description="Proxy pass URL")
@@ -63,6 +63,8 @@ class InternalServiceRegistration(BaseModel):
     headers: Optional[Dict[str, str]] = Field(None, description="Custom headers")
     tool_list_json: Optional[str] = Field(None, description="Tool list as JSON string")
     overwrite: Optional[bool] = Field(False, description="Overwrite if exists")
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class Server(BaseModel):
@@ -517,7 +519,7 @@ class RegistryClient:
         response = self._make_request(
             method="POST",
             endpoint="/api/servers/register",
-            data=registration.model_dump(exclude_none=True)
+            data=registration.model_dump(exclude_none=True, by_alias=True)
         )
 
         logger.info(f"Service registered successfully: {registration.service_path}")

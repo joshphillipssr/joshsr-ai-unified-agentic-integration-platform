@@ -592,23 +592,8 @@ def cmd_agent_register(args: argparse.Namespace) -> int:
             skills.append(Skill(**skill_dict))
         config['skills'] = skills
 
-        # Convert provider string to enum with validation
-        if 'provider' in config:
-            provider_value = config['provider'].lower()
-            # Map common values to valid enum values
-            provider_map = {
-                'anthropic': AgentProvider.ANTHROPIC,
-                'custom': AgentProvider.CUSTOM,
-                'other': AgentProvider.OTHER,
-                'example corp': AgentProvider.CUSTOM,
-                'example': AgentProvider.CUSTOM
-            }
-
-            if provider_value in provider_map:
-                config['provider'] = provider_map[provider_value]
-            else:
-                logger.warning(f"Unknown provider '{config['provider']}', using 'custom'")
-                config['provider'] = AgentProvider.CUSTOM
+        # Provider is now a dict object per A2A spec {organization, url}
+        # No conversion needed - pass it through as-is
 
         # Convert visibility string to enum if present
         if 'visibility' in config:
@@ -646,8 +631,9 @@ def cmd_agent_register(args: argparse.Namespace) -> int:
 
         # Remove fields that aren't in AgentRegistration model
         valid_fields = {
-            'name', 'description', 'path', 'url', 'version', 'provider',
-            'security_schemes', 'skills', 'tags', 'visibility', 'license'
+            'protocol_version', 'name', 'description', 'path', 'url', 'version',
+            'capabilities', 'default_input_modes', 'default_output_modes',
+            'provider', 'security_schemes', 'skills', 'tags', 'visibility', 'license'
         }
         config = {k: v for k, v in config.items() if k in valid_fields}
 
@@ -691,6 +677,12 @@ def cmd_agent_list(args: argparse.Namespace) -> int:
             enabled_only=args.enabled_only if hasattr(args, 'enabled_only') else False,
             visibility=args.visibility if hasattr(args, 'visibility') else None
         )
+
+        # Debug mode: print full JSON response
+        if args.debug:
+            logger.debug("Full JSON response from API:")
+            print(json.dumps(response.model_dump(by_alias=True), indent=2, default=str))
+            print()
 
         if not response.agents:
             logger.info("No agents found")
