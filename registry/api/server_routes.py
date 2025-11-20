@@ -2367,7 +2367,7 @@ async def register_service_api(
         logger.info(f"Service registered successfully via API: {path} by user {user_context.get('username')}")
 
         # Trigger async tasks for health check and FAISS sync
-        asyncio.create_task(health_service.check_server_health(path))
+        asyncio.create_task(health_service.perform_immediate_health_check(path))
         asyncio.create_task(faiss_service.sync_to_efs())
 
         return JSONResponse(
