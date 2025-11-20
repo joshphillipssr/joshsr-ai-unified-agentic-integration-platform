@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from pydantic import (
     BaseModel,
+    ConfigDict,
     Field,
     field_validator,
     model_validator,
@@ -252,6 +253,27 @@ class SecurityScheme(BaseModel):
         return v
 
 
+class AgentProvider(BaseModel):
+    """
+    A2A Agent Provider information.
+
+    Represents the service provider of an agent with organization name and website URL.
+    Per A2A specification, if provider is present, both organization and url are required.
+    """
+
+    organization: str = Field(
+        ...,
+        description="Provider organization name",
+    )
+    url: str = Field(
+        ...,
+        description="Provider website or documentation URL",
+    )
+
+    class Config:
+        populate_by_name = True
+
+
 class Skill(BaseModel):
     """
     Agent skill definition per A2A protocol specification.
@@ -275,8 +297,8 @@ class Skill(BaseModel):
         description="Detailed skill description",
     )
     tags: List[str] = Field(
-        default_factory=list,
-        description="Skill categorization tags",
+        ...,
+        description="Skill categorization tags - keywords describing capability",
     )
     examples: Optional[List[str]] = Field(
         None,
@@ -387,9 +409,9 @@ class AgentCard(BaseModel):
         alias="preferredTransport",
         description="Preferred transport protocol: JSONRPC, GRPC, HTTP+JSON",
     )
-    provider: Optional[str] = Field(
+    provider: Optional[AgentProvider] = Field(
         None,
-        description="Agent provider/author",
+        description="Agent provider information per A2A spec",
     )
     icon_url: Optional[str] = Field(
         None,
@@ -667,6 +689,7 @@ class AgentRegistrationRequest(BaseModel):
 
     This model is used for the agent registration API endpoint and converts
     form-style inputs (e.g., comma-separated tags) into the proper types.
+    Accepts both snake_case (Python) and camelCase (A2A spec JSON) field names.
     """
 
     name: str = Field(
@@ -689,18 +712,20 @@ class AgentRegistrationRequest(BaseModel):
     )
     protocol_version: str = Field(
         default="1.0",
+        alias="protocolVersion",
         description="A2A protocol version",
     )
     version: Optional[str] = Field(
         None,
         description="Agent version",
     )
-    provider: Optional[str] = Field(
+    provider: Optional[Dict[str, str]] = Field(
         None,
-        description="Agent provider/author",
+        description="Agent provider information {organization, url}",
     )
     security_schemes: Optional[Dict[str, Dict[str, Any]]] = Field(
         None,
+        alias="securitySchemes",
         description="Security schemes configuration",
     )
     skills: Optional[List[Dict[str, Any]]] = Field(
@@ -723,6 +748,8 @@ class AgentRegistrationRequest(BaseModel):
         default="public",
         description="Visibility: public, private, or group-restricted",
     )
+
+    model_config = ConfigDict(populate_by_name=True)
 
     @field_validator("tags", mode="before")
     @classmethod

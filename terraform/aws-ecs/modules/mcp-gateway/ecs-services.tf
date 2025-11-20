@@ -342,6 +342,10 @@ module "ecs_service_registry" {
         {
           name  = "AWS_REGION"
           value = data.aws_region.current.id
+        },
+        {
+          name  = "SCOPES_CONFIG_PATH"
+          value = "/app/auth_server/scopes.yml"
         }
       ]
 

@@ -64,6 +64,22 @@ output "mcp_gateway_monitoring_enabled" {
   value       = module.mcp_gateway.monitoring_enabled
 }
 
+# EFS Outputs
+output "mcp_gateway_efs_id" {
+  description = "MCP Gateway EFS file system ID"
+  value       = module.mcp_gateway.efs_id
+}
+
+output "mcp_gateway_efs_arn" {
+  description = "MCP Gateway EFS file system ARN"
+  value       = module.mcp_gateway.efs_arn
+}
+
+output "mcp_gateway_efs_access_points" {
+  description = "MCP Gateway EFS access point IDs"
+  value       = module.mcp_gateway.efs_access_points
+}
+
 # Monitoring Outputs
 output "monitoring_sns_topic" {
   description = "SNS topic ARN for CloudWatch alarms"

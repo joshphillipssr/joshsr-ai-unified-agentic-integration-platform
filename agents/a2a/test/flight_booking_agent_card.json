@@ -1,49 +1,52 @@
 {
+  "protocolVersion": "0.3.0",
+  "name": "Flight Booking Agent",
+  "description": "Flight booking and reservation management agent",
+  "url": "http://flight-booking-agent:9000/",
+  "version": "0.0.1",
   "capabilities": {
     "streaming": true
   },
-  "defaultInputModes": [
-    "text"
-  ],
-  "defaultOutputModes": [
-    "text"
-  ],
-  "description": "Flight booking and reservation management agent",
-  "name": "Flight Booking Agent",
-  "preferredTransport": "JSONRPC",
-  "protocolVersion": "0.3.0",
+  "defaultInputModes": ["text/plain", "application/json"],
+  "defaultOutputModes": ["text/plain", "application/json"],
+  "provider": {
+    "organization": "Example Corp",
+    "url": "https://example-corp.com"
+  },
   "skills": [
     {
-      "description": "Check seat availability for a specific flight.",
       "id": "check_availability",
-      "name": "check_availability",
-      "tags": []
+      "name": "Check Availability",
+      "description": "Check seat availability for a specific flight.",
+      "tags": ["flight", "availability", "booking"]
     },
     {
-      "description": "Reserve seats on a flight for passengers.",
       "id": "reserve_flight",
-      "name": "reserve_flight",
-      "tags": []
+      "name": "Reserve Flight",
+      "description": "Reserve seats on a flight for passengers.",
+      "tags": ["flight", "reservation", "booking"]
     },
     {
-      "description": "Confirm and finalize a flight booking.",
       "id": "confirm_booking",
-      "name": "confirm_booking",
-      "tags": []
+      "name": "Confirm Booking",
+      "description": "Confirm and finalize a flight booking.",
+      "tags": ["flight", "confirmation", "booking"]
     },
     {
-      "description": "Process payment for a booking (simulated).",
       "id": "process_payment",
-      "name": "process_payment",
-      "tags": []
+      "name": "Process Payment",
+      "description": "Process payment for a booking (simulated).",
+      "tags": ["payment", "processing", "booking"]
     },
     {
-      "description": "Update, view, or cancel existing reservations.",
       "id": "manage_reservation",
-      "name": "manage_reservation",
-      "tags": []
+      "name": "Manage Reservation",
+      "description": "Update, view, or cancel existing reservations.",
+      "tags": ["reservation", "management", "booking"]
     }
   ],
-  "url": "http://flight-booking-agent:9000/",
-  "version": "0.0.1"
+  "tags": ["travel", "flight-booking", "reservation"],
+  "visibility": "public",
+  "license": "MIT",
+  "path": "/flight-booking"
 }

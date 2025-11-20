@@ -88,7 +88,7 @@ paths:
           in: query
           schema:
             type: string
-            enum: [public, private, internal]
+            enum: [public, private, group-restricted]
           description: Filter by visibility level
       responses:
         '200':
@@ -334,76 +334,164 @@ components:
     AgentRegistration:
       type: object
       required:
+        - protocol_version
         - name
         - description
-        - path
         - url
-        - version
-        - provider
       properties:
+        protocol_version:
+          type: string
+          description: A2A protocol version (e.g., '1.0')
         name:
           type: string
-          description: Display name of the agent
+          description: Agent name
         description:
           type: string
-          description: Detailed description of the agent
-        path:
-          type: string
-          description: Unique path for the agent (e.g., /code-reviewer)
+          description: Agent description
         url:
           type: string
           format: uri
-          description: URL where the agent is hosted
+          description: Agent endpoint URL (HTTP or HTTPS)
         version:
           type: string
-          description: Version string (e.g., 1.0.0)
+          description: Agent version
         provider:
           type: string
-          enum: [anthropic, custom, other]
-          description: Agent provider
+          description: Agent provider/author
+        path:
+          type: string
+          description: Registry path (e.g., /agents/my-agent). Optional - auto-generated if not provided
         security_schemes:
           type: object
-          description: Security schemes supported by the agent
+          description: Supported authentication methods
           additionalProperties:
+            $ref: '#/components/schemas/SecurityScheme'
+        security:
+          type: array
+          description: Security requirements array
+          items:
             type: object
-            properties:
-              type:
-                type: string
-                enum: [bearer, api_key, oauth2]
-              description:
+            additionalProperties:
+              type: array
+              items:
                 type: string
         skills:
           type: array
-          description: Array of skills provided by the agent
+          description: Agent capabilities
           items:
             $ref: '#/components/schemas/Skill'
+        streaming:
+          type: boolean
+          default: false
+          description: Supports streaming responses
+        metadata:
+          type: object
+          description: Additional metadata
+          additionalProperties: true
         tags:
-          type: string
-          description: Comma-separated tags
-        visibility:
-          type: string
-          enum: [public, private, internal]
-          default: public
-          description: Visibility level
+          type: array
+          description: Categorization tags
+          items:
+            type: string
+        is_enabled:
+          type: boolean
+          default: false
+          description: Whether agent is enabled in registry
+        num_stars:
+          type: integer
+          minimum: 0
+          default: 0
+          description: Community rating
         license:
           type: string
-          description: License type (e.g., MIT, Apache-2.0)
+          default: N/A
+          description: License information
+        visibility:
+          type: string
+          enum: [public, private, group-restricted]
+          default: public
+          description: Visibility level
+        allowed_groups:
+          type: array
+          description: Groups with access (required for group-restricted visibility)
+          items:
+            type: string
+        trust_level:
+          type: string
+          enum: [unverified, community, verified, trusted]
+          default: unverified
+          description: Trust level
+        registered_at:
+          type: string
+          format: date-time
+          description: Registration timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: Last update timestamp
+        registered_by:
+          type: string
+          description: Username who registered agent
+        signature:
+          type: string
+          description: JWS signature for card integrity
+
+    SecurityScheme:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          enum: [apiKey, http, oauth2, openIdConnect]
+          description: "Security type: apiKey, http, oauth2, openIdConnect"
+        scheme:
+          type: string
+          description: "HTTP auth scheme: basic, bearer, digest"
+        in:
+          type: string
+          enum: [header, query, cookie]
+          description: "API key location: header, query, cookie"
+        name:
+          type: string
+          description: Name of header/query/cookie for API key
+        bearer_format:
+          type: string
+          description: Bearer token format hint (e.g., JWT)
+        flows:
+          type: object
+          description: OAuth2 flows configuration
+          additionalProperties: true
+        openid_connect_url:
+          type: string
+          format: uri
+          description: OpenID Connect discovery URL
 
     Skill:
       type: object
       required:
+        - id
         - name
         - description
       properties:
+        id:
+          type: string
+          description: Unique skill identifier
         name:
           type: string
-          description: Skill name
+          description: Human-readable skill name
         description:
           type: string
-          description: Skill description
-        input_schema:
+          description: Detailed skill description
+        parameters:
           type: object
-          description: JSON schema for skill input parameters
+          description: JSON Schema for skill parameters
+          additionalProperties: true
+        tags:
+          type: array
+          description: Skill categorization tags
+          items:
+            type: string
 
     AgentRegistrationResponse:
       type: object
@@ -432,61 +520,180 @@ components:
 
     AgentDetail:
       type: object
+      required:
+        - protocol_version
+        - name
+        - description
+        - url
       properties:
+        protocol_version:
+          type: string
+          description: A2A protocol version
         name:
           type: string
-        path:
-          type: string
+          description: Agent name
         description:
           type: string
+          description: Agent description
         url:
           type: string
+          format: uri
+          description: Agent endpoint URL
         version:
           type: string
+          description: Agent version
         provider:
           type: string
-        skills:
-          type: array
-          items:
-            $ref: '#/components/schemas/SkillDetail'
-        is_enabled:
-          type: boolean
-        visibility:
+          description: Agent provider/author
+        path:
           type: string
+          description: Registry path
         security_schemes:
           type: object
-
-    SkillDetail:
-      type: object
-      properties:
-        name:
-          type: string
-        description:
-          type: string
-        input_schema:
+          description: Supported authentication methods
+          additionalProperties:
+            $ref: '#/components/schemas/SecurityScheme'
+        security:
+          type: array
+          description: Security requirements array
+          items:
+            type: object
+            additionalProperties:
+              type: array
+              items:
+                type: string
+        skills:
+          type: array
+          description: Agent capabilities
+          items:
+            $ref: '#/components/schemas/Skill'
+        streaming:
+          type: boolean
+          default: false
+          description: Supports streaming responses
+        metadata:
           type: object
+          description: Additional metadata
+          additionalProperties: true
+        tags:
+          type: array
+          description: Categorization tags
+          items:
+            type: string
+        is_enabled:
+          type: boolean
+          default: false
+          description: Whether agent is enabled
+        num_stars:
+          type: integer
+          minimum: 0
+          default: 0
+          description: Community rating
+        license:
+          type: string
+          default: N/A
+          description: License information
+        visibility:
+          type: string
+          enum: [public, private, group-restricted]
+          default: public
+          description: Visibility level
+        allowed_groups:
+          type: array
+          description: Groups with access
+          items:
+            type: string
+        trust_level:
+          type: string
+          enum: [unverified, community, verified, trusted]
+          default: unverified
+          description: Trust level
+        registered_at:
+          type: string
+          format: date-time
+          description: Registration timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: Last update timestamp
+        registered_by:
+          type: string
+          description: Username who registered agent
+        signature:
+          type: string
+          description: JWS signature for card integrity
 
     AgentListResponse:
       type: object
+      required:
+        - agents
+        - total_count
       properties:
         agents:
           type: array
           items:
             $ref: '#/components/schemas/AgentListItem'
+        total_count:
+          type: integer
+          description: Total count of agents
 
     AgentListItem:
       type: object
+      required:
+        - name
+        - path
+        - url
       properties:
         name:
           type: string
-        path:
-          type: string
+          description: Agent name
         description:
           type: string
+          default: ""
+          description: Agent description
+        path:
+          type: string
+          description: Registry path
+        url:
+          type: string
+          format: uri
+          description: Agent endpoint URL
+        tags:
+          type: array
+          description: Categorization tags
+          items:
+            type: string
+        skills:
+          type: array
+          description: Skill names only
+          items:
+            type: string
+        num_skills:
+          type: integer
+          minimum: 0
+          default: 0
+          description: Number of skills
+        num_stars:
+          type: integer
+          minimum: 0
+          default: 0
+          description: Community rating
         is_enabled:
           type: boolean
-        total_count:
-          type: integer
+          default: false
+          description: Whether agent is enabled
+        provider:
+          type: string
+          description: Agent provider/author
+        streaming:
+          type: boolean
+          default: false
+          description: Supports streaming responses
+        trust_level:
+          type: string
+          enum: [unverified, community, verified, trusted]
+          default: unverified
+          description: Trust level
 
     AgentToggleResponse:
       type: object

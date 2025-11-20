@@ -310,4 +310,5 @@ override.tf.json
 crash.log
 crash.*.log
 tfplan*
+terraform.tfstate*
 terraform-outputs.json.backup*

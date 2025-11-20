@@ -2368,7 +2368,7 @@ async def register_service_api(
 
         # Trigger async tasks for health check and FAISS sync
         asyncio.create_task(health_service.perform_immediate_health_check(path))
-        asyncio.create_task(faiss_service.sync_to_efs())
+        asyncio.create_task(faiss_service.save_data())
 
         return JSONResponse(
             status_code=201,

@@ -16,7 +16,8 @@ echo -e "${YELLOW}Copying scopes.yml to EFS...${NC}"
 # Get script directory
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 TERRAFORM_DIR="$(dirname "$SCRIPT_DIR")"
-REPO_ROOT="$(dirname "$TERRAFORM_DIR")"
+TERRAFORM_PARENT="$(dirname "$TERRAFORM_DIR")"
+REPO_ROOT="$(dirname "$TERRAFORM_PARENT")"
 
 # Source file
 SCOPES_SRC="${REPO_ROOT}/auth_server/scopes.yml"
@@ -28,12 +29,41 @@ fi
 
 echo "Source file: $SCOPES_SRC"
 
-# Get EFS file system ID from terraform output
+# --- S3 Bucket Setup ---
+echo -e "${YELLOW}Setting up S3 bucket for scopes.yml...${NC}"
+
+# Get AWS account ID for bucket naming
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+S3_BUCKET_NAME="mcp-gateway-scopes-${ACCOUNT_ID}"
+
+echo "S3 Bucket Name: $S3_BUCKET_NAME"
+
+# Check if bucket exists, if not create it
+if aws s3 ls "s3://${S3_BUCKET_NAME}" 2>&1 | grep -q 'NoSuchBucket'; then
+    echo -e "${YELLOW}Creating S3 bucket: $S3_BUCKET_NAME${NC}"
+    aws s3 mb "s3://${S3_BUCKET_NAME}" --region us-west-2
+    echo -e "${GREEN}S3 bucket created${NC}"
+else
+    echo "S3 bucket already exists"
+fi
+
+# Upload scopes.yml to S3
+echo -e "${YELLOW}Uploading scopes.yml to S3...${NC}"
+aws s3 cp "$SCOPES_SRC" "s3://${S3_BUCKET_NAME}/scopes.yml" --region us-west-2
+echo -e "${GREEN}scopes.yml uploaded to S3${NC}"
+
+# Get EFS file system ID from terraform output or AWS CLI
 cd "$TERRAFORM_DIR"
-EFS_ID=$(terraform output -json | jq -r '.mcp_gateway_efs_id.value // empty')
+EFS_ID=$(terraform output -json 2>/dev/null | jq -r '.mcp_gateway_efs_id.value // empty' 2>/dev/null || echo "")
+
+# If not found in terraform output, get from AWS CLI
+if [ -z "$EFS_ID" ]; then
+    echo "EFS ID not in terraform output, fetching from AWS..."
+    EFS_ID=$(aws efs describe-file-systems --region us-west-2 --query 'FileSystems[?Tags[?Key==`Name` && contains(Value, `mcp-gateway`)]].FileSystemId' --output text)
+fi
 
 if [ -z "$EFS_ID" ]; then
-    echo -e "${RED}Error: Could not get EFS ID from terraform output${NC}"
+    echo -e "${RED}Error: Could not get EFS ID from terraform output or AWS${NC}"
     exit 1
 fi
 
@@ -62,9 +92,12 @@ AUTH_CONFIG_DIR="${MOUNT_POINT}/auth_config"
 sudo mkdir -p "$AUTH_CONFIG_DIR"
 sudo chown 1000:1000 "$AUTH_CONFIG_DIR"
 
-# Copy scopes.yml
-echo -e "${YELLOW}Copying scopes.yml...${NC}"
-sudo cp "$SCOPES_SRC" "${AUTH_CONFIG_DIR}/scopes.yml"
+# Download scopes.yml from S3 and copy to EFS
+echo -e "${YELLOW}Downloading scopes.yml from S3 and copying to EFS...${NC}"
+TEMP_SCOPES="/tmp/scopes-$$.yml"
+aws s3 cp "s3://${S3_BUCKET_NAME}/scopes.yml" "$TEMP_SCOPES" --region us-west-2
+sudo cp "$TEMP_SCOPES" "${AUTH_CONFIG_DIR}/scopes.yml"
+rm -f "$TEMP_SCOPES"
 sudo chown 1000:1000 "${AUTH_CONFIG_DIR}/scopes.yml"
 sudo chmod 644 "${AUTH_CONFIG_DIR}/scopes.yml"
 

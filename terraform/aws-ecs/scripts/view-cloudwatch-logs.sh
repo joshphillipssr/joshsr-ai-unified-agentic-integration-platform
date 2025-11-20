@@ -35,6 +35,12 @@
 #   # View logs with pattern filter
 #   ./scripts/view-cloudwatch-logs.sh --filter "ERROR"
 #
+#   # View auth-server logs excluding health checks (default)
+#   ./scripts/view-cloudwatch-logs.sh --component auth-server
+#
+#   # View auth-server logs including health check logs
+#   ./scripts/view-cloudwatch-logs.sh --component auth-server --include-health
+#
 ################################################################################
 
 set -euo pipefail
@@ -52,6 +58,7 @@ MINUTES=30
 FOLLOW=false
 COMPONENT="all"
 FILTER_PATTERN=""
+EXCLUDE_HEALTH_CHECKS=true
 START_TIME=""
 END_TIME=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -156,6 +163,20 @@ _check_log_group_exists() {
     fi
 }
 
+_should_exclude_log() {
+    local message="$1"
+
+    # Exclude health check logs
+    if [[ "$EXCLUDE_HEALTH_CHECKS" == "true" ]]; then
+        # Health check patterns to exclude
+        if [[ "$message" =~ GET\ /health\ HTTP ]]; then
+            return 0  # Should exclude
+        fi
+    fi
+
+    return 1  # Don't exclude
+}
+
 _tail_logs() {
     local log_group="$1"
     local follow="${2:-false}"
@@ -175,7 +196,11 @@ _tail_logs() {
             --since "${MINUTES}m" \
             --region "${AWS_REGION:-us-west-2}" \
             $(if [[ -n "$FILTER_PATTERN" ]]; then echo "--filter-pattern $FILTER_PATTERN"; fi) \
-            2>/dev/null || true
+            2>/dev/null | while read -r message; do
+            if ! _should_exclude_log "$message"; then
+                echo "$message"
+            fi
+        done || true
     else
         # Display logs from the past N minutes
         local start_time=$(_calculate_start_time)
@@ -191,6 +216,11 @@ _tail_logs() {
             --output text \
             2>/dev/null | while read -r timestamp message; do
             if [[ -n "$timestamp" && -n "$message" ]]; then
+                # Skip health check logs if enabled
+                if _should_exclude_log "$message"; then
+                    continue
+                fi
+
                 # Convert timestamp from milliseconds to readable format
                 if command -v date &> /dev/null; then
                     if [[ "$OSTYPE" == "darwin"* ]]; then
@@ -276,6 +306,10 @@ while [[ $# -gt 0 ]]; do
         --filter)
             FILTER_PATTERN="$2"
             shift 2
+            ;;
+        --include-health)
+            EXCLUDE_HEALTH_CHECKS=false
+            shift
             ;;
         --help)
             show_help
