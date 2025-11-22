@@ -246,10 +246,13 @@ variable "alarm_email" {
 }
 
 # EFS Configuration
+# Note: 'bursting' mode is recommended for most workloads and is FREE.
+# It provides up to 100 MiB/s burst throughput, which is sufficient for registry operations.
+# 'provisioned' mode costs $6/MiB/s-month and should only be used for proven high-throughput needs.
 variable "efs_throughput_mode" {
   description = "Throughput mode for EFS (bursting or provisioned)"
   type        = string
-  default     = "provisioned"
+  default     = "bursting"
   validation {
     condition     = contains(["bursting", "provisioned"], var.efs_throughput_mode)
     error_message = "EFS throughput mode must be either 'bursting' or 'provisioned'."
