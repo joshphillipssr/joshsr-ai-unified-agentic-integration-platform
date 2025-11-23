@@ -2,18 +2,18 @@
 # Registry DNS and SSL Certificate Configuration
 #
 # Provides DNS and HTTPS support for the main MCP Gateway Registry ALB
-# Domain: registry.mycorp.click (configured via var.root_domain)
+# Domain: registry.mycorp.click (configured via local.root_domain)
 #
 
 # Use existing hosted zone for the root domain
 data "aws_route53_zone" "registry_root" {
-  name         = var.root_domain
+  name         = local.root_domain
   private_zone = false
 }
 
 # Create SSL certificate for registry subdomain
 resource "aws_acm_certificate" "registry" {
-  domain_name       = "registry.${var.root_domain}"
+  domain_name       = "registry.${local.root_domain}"
   validation_method = "DNS"
 
   tags = merge(
@@ -61,7 +61,7 @@ resource "aws_acm_certificate_validation" "registry" {
 # Create A record for registry subdomain pointing to main ALB
 resource "aws_route53_record" "registry" {
   zone_id = data.aws_route53_zone.registry_root.zone_id
-  name    = "registry.${var.root_domain}"
+  name    = "registry.${local.root_domain}"
   type    = "A"
 
   alias {

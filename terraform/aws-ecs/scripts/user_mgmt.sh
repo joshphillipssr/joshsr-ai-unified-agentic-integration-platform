@@ -29,7 +29,7 @@ load_config() {
     # ADMIN_PASSWORD - try env var, then SSM if AWS CLI available
     ADMIN_PASS="${KEYCLOAK_ADMIN_PASSWORD}"
     if [ -z "$ADMIN_PASS" ] && command -v aws &> /dev/null; then
-        ADMIN_PASS=$(aws ssm get-parameter --name "/keycloak/admin_password" --with-decryption --query 'Parameter.Value' --output text --region us-west-2 2>/dev/null || echo "")
+        ADMIN_PASS=$(aws ssm get-parameter --name "/keycloak/admin_password" --with-decryption --query 'Parameter.Value' --output text --region "${AWS_REGION:-us-west-2}" 2>/dev/null || echo "")
     fi
 
     # OAuth tokens directory

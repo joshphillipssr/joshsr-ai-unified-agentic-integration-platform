@@ -4,13 +4,13 @@
 
 # Use existing hosted zone for the root domain
 data "aws_route53_zone" "root" {
-  name         = var.root_domain
+  name         = local.root_domain
   private_zone = false
 }
 
 # Create SSL certificate for Keycloak domain
 resource "aws_acm_certificate" "keycloak" {
-  domain_name       = var.keycloak_domain
+  domain_name       = local.keycloak_domain
   validation_method = "DNS"
 
   tags = merge(
@@ -55,7 +55,7 @@ resource "aws_acm_certificate_validation" "keycloak" {
 # Create A record for Keycloak subdomain
 resource "aws_route53_record" "keycloak" {
   zone_id = data.aws_route53_zone.root.zone_id
-  name    = var.keycloak_domain
+  name    = local.keycloak_domain
   type    = "A"
 
   alias {

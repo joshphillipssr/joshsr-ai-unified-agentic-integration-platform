@@ -35,13 +35,13 @@ module "mcp_gateway" {
 
   # HTTPS configuration
   certificate_arn = aws_acm_certificate.registry.arn
-  domain_name     = "registry.${var.root_domain}"
+  domain_name     = "registry.${local.root_domain}"
 
   # Keycloak configuration
-  keycloak_domain = var.keycloak_domain
+  keycloak_domain = local.keycloak_domain
 
   # Container images
-  registry_image_uri               = "605134468121.dkr.ecr.us-west-2.amazonaws.com/mcp-gateway-registry:latest"
+  registry_image_uri               = var.registry_image_uri
   auth_server_image_uri            = var.auth_server_image_uri
   currenttime_image_uri            = var.currenttime_image_uri
   mcpgw_image_uri                  = var.mcpgw_image_uri

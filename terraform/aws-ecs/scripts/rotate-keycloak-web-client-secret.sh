@@ -67,7 +67,7 @@ fi
 KEYCLOAK_URL="${KEYCLOAK_ADMIN_URL:-https://kc.mycorp.click}"
 REALM="mcp-gateway"
 CLIENT_ID="mcp-gateway-web"
-AWS_REGION="us-west-2"
+AWS_REGION="${AWS_REGION:-us-west-2}"
 
 print_info "Keycloak URL: $KEYCLOAK_URL"
 print_info "Realm: $REALM"

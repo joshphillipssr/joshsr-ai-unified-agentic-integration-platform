@@ -5,7 +5,7 @@ variable "name" {
 }
 
 variable "aws_region" {
-  description = "AWS region for deployment"
+  description = "AWS region for deployment. Can be set via TF_VAR_aws_region environment variable or terraform.tfvars"
   type        = string
   default     = "us-east-1"
 }
@@ -32,14 +32,28 @@ variable "alarm_email" {
 # Keycloak Configuration Variables
 #
 
-variable "keycloak_domain" {
-  description = "Full domain for Keycloak (e.g., kc.example.com)"
+variable "use_regional_domains" {
+  description = "Use region-based domains (e.g., kc.us-west-2.mycorp.click). If false, uses keycloak_domain and root_domain directly"
+  type        = bool
+  default     = true
+}
+
+variable "base_domain" {
+  description = "Base domain for regional domains (e.g., mycorp.click). Used when use_regional_domains is true"
   type        = string
+  default     = "mycorp.click"
+}
+
+variable "keycloak_domain" {
+  description = "Full domain for Keycloak (e.g., kc.example.com). Used when use_regional_domains is false"
+  type        = string
+  default     = ""
 }
 
 variable "root_domain" {
-  description = "Root domain with Route53 hosted zone"
+  description = "Root domain with Route53 hosted zone. Used when use_regional_domains is false"
   type        = string
+  default     = ""
 }
 
 variable "keycloak_admin" {
@@ -89,6 +103,12 @@ variable "keycloak_log_level" {
 #
 # MCP Gateway Services - Container Images
 #
+
+variable "registry_image_uri" {
+  description = "Container image URI for registry service"
+  type        = string
+  default     = ""
+}
 
 variable "auth_server_image_uri" {
   description = "Container image URI for auth server service"

@@ -18,7 +18,7 @@ locals {
     },
     {
       name  = "KC_HOSTNAME"
-      value = var.keycloak_domain
+      value = local.keycloak_domain
     },
     {
       name  = "KC_HOSTNAME_STRICT"

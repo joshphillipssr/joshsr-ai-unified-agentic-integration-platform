@@ -104,12 +104,12 @@ output "deployment_summary" {
 
 output "keycloak_url" {
   description = "Keycloak URL"
-  value       = "https://${var.keycloak_domain}"
+  value       = "https://${local.keycloak_domain}"
 }
 
 output "keycloak_admin_console" {
   description = "Keycloak admin console URL"
-  value       = "https://${var.keycloak_domain}/admin"
+  value       = "https://${local.keycloak_domain}/admin"
 }
 
 output "keycloak_alb_dns" {
@@ -128,7 +128,7 @@ output "keycloak_ecr_repository" {
 
 output "registry_url" {
   description = "Registry URL with custom domain"
-  value       = "https://registry.${var.root_domain}"
+  value       = "https://registry.${local.root_domain}"
 }
 
 output "registry_certificate_arn" {

@@ -23,43 +23,62 @@ ingress_cidr_blocks = [
   "44.192.72.20/32"        # Example: Your EC2 instance IP
 ]
 
-# Keycloak ALB - Primary IP (usually your laptop/dev machine)
-# This IP can access: http://mcp-gateway-kc-alb-*.us-east-1.elb.amazonaws.com:8080
-keycloak_ingress_cidr = "71.114.44.148/32"
-
-# Keycloak ALB - Secondary IP (usually your EC2 instance)
-# This IP can also access: http://mcp-gateway-kc-alb-*.us-east-1.elb.amazonaws.com:8080
-keycloak_ingress_cidr_ec2 = "44.192.72.20/32"
-
 # ============================================================================
-# KEYCLOAK ALB CONFIGURATION
+# DOMAIN CONFIGURATION
 # ============================================================================
 
-# Make Keycloak ALB internet-facing (public) or internal (private only)
-# Options: "internet-facing" or "internal"
-keycloak_alb_scheme = "internet-facing"
+# Option 1: Use regional domains (RECOMMENDED for multi-region deployments)
+# This automatically creates domains based on the region:
+#   - Keycloak: kc.{region}.mycorp.click (e.g., kc.us-west-2.mycorp.click)
+#   - Registry: registry.{region}.mycorp.click (e.g., registry.us-west-2.mycorp.click)
+use_regional_domains = true
+base_domain          = "mycorp.click"
+
+# Option 2: Use custom static domains (set use_regional_domains = false)
+# Uncomment these if you want fixed domains regardless of region:
+# use_regional_domains = false
+# keycloak_domain = "kc.example.com"
+# root_domain = "example.com"
 
 # ============================================================================
-# KEYCLOAK OAUTH2 CONFIGURATION
+# KEYCLOAK CREDENTIALS (REQUIRED)
 # ============================================================================
 
-# Keycloak Web Client Secret
-# Get this from: Keycloak Admin Console > Clients > mcp-gateway-web > Credentials > Secret
-# Default: "change-me-to-keycloak-web-client-secret"
-keycloak_client_secret = "change-me-to-keycloak-web-client-secret"
+# Keycloak admin credentials
+keycloak_admin          = "admin"
+keycloak_admin_password = "CHANGE-ME-SECURE-PASSWORD"
 
-# Keycloak M2M (Machine-to-Machine) Client Secret
-# Get this from: Keycloak Admin Console > Clients > mcp-gateway-m2m > Credentials > Secret
-# Default: "change-me-to-keycloak-m2m-client-secret"
-keycloak_m2m_client_secret = "change-me-to-keycloak-m2m-client-secret"
+# Keycloak database credentials
+keycloak_database_username = "keycloak"
+keycloak_database_password = "CHANGE-ME-DB-PASSWORD"
+
+# ============================================================================
+# CONTAINER IMAGE URIS (REQUIRED)
+# ============================================================================
+
+# Registry image from ECR
+registry_image_uri = "YOUR_ACCOUNT.dkr.ecr.YOUR_REGION.amazonaws.com/mcp-gateway-registry:latest"
+
+# Auth server image from ECR
+auth_server_image_uri = "YOUR_ACCOUNT.dkr.ecr.YOUR_REGION.amazonaws.com/mcp-gateway-auth-server:latest"
+
+# MCP Server images from ECR
+currenttime_image_uri         = "YOUR_ACCOUNT.dkr.ecr.YOUR_REGION.amazonaws.com/mcp-gateway-currenttime:latest"
+mcpgw_image_uri               = "YOUR_ACCOUNT.dkr.ecr.YOUR_REGION.amazonaws.com/mcp-gateway-mcpgw:latest"
+realserverfaketools_image_uri = "YOUR_ACCOUNT.dkr.ecr.YOUR_REGION.amazonaws.com/mcp-gateway-realserverfaketools:latest"
+
+# A2A Agent images from ECR
+flight_booking_agent_image_uri   = "YOUR_ACCOUNT.dkr.ecr.YOUR_REGION.amazonaws.com/mcp-gateway-flight-booking-agent:latest"
+travel_assistant_agent_image_uri = "YOUR_ACCOUNT.dkr.ecr.YOUR_REGION.amazonaws.com/mcp-gateway-travel-assistant-agent:latest"
 
 # ============================================================================
 # OPTIONAL: ADDITIONAL CONFIGURATION
 # ============================================================================
 
 # AWS Region
+# Can also be set via TF_VAR_aws_region environment variable
 # Default: "us-east-1"
-# aws_region = "us-east-1"
+# aws_region = "us-west-2"
 
 # Deployment name prefix
 # Default: "mcp-gateway"
@@ -69,13 +88,37 @@ keycloak_m2m_client_secret = "change-me-to-keycloak-m2m-client-secret"
 # Default: "10.0.0.0/16"
 # vpc_cidr = "10.0.0.0/16"
 
-# SSL Certificate ARN (optional)
-# Leave empty for HTTP-only, provide ACM certificate ARN for HTTPS
-# certificate_arn = ""
-
 # Enable CloudWatch monitoring
 # Default: true
 # enable_monitoring = true
 
 # Email for alarm notifications (optional)
 # alarm_email = ""
+
+# ============================================================================
+# OPTIONAL: KEYCLOAK DATABASE SCALING
+# ============================================================================
+
+# Database Aurora Serverless capacity (default values shown)
+# keycloak_database_min_acu = 0.5
+# keycloak_database_max_acu = 2
+
+# ============================================================================
+# OPTIONAL: KEYCLOAK LOGGING
+# ============================================================================
+
+# Keycloak log level
+# Default: "INFO"
+# keycloak_log_level = "INFO"
+
+# ============================================================================
+# OPTIONAL: SERVICE REPLICA COUNTS
+# ============================================================================
+
+# Service replica counts (when autoscaling is disabled)
+# Uncomment to override defaults (all default to 1)
+# currenttime_replicas              = 1
+# mcpgw_replicas                    = 1
+# realserverfaketools_replicas      = 1
+# flight_booking_agent_replicas     = 1
+# travel_assistant_agent_replicas   = 1

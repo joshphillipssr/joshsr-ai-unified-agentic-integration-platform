@@ -2577,8 +2577,9 @@ async def healthcheck_api(
 
 @router.post("/servers/groups/add")
 async def add_server_to_groups_api(
-    server_path: Annotated[str, Form()],
-    groups: Annotated[str, Form()],
+    request: Request,
+    server_name: Annotated[str, Form()],
+    group_names: Annotated[str, Form()],
     user_context: Annotated[dict, Depends(nginx_proxied_auth)] = None,
 ):
     """
@@ -2591,8 +2592,8 @@ async def add_server_to_groups_api(
     **Authorization:** Requires valid JWT token from auth system
 
     **Request body (form data):**
-    - `server_path` (required): Service path
-    - `groups` (required): Comma-separated list of group names
+    - `server_name` (required): Service name
+    - `group_names` (required): Comma-separated list of group names
 
     **Response:**
     Returns confirmation of group assignment.
@@ -2601,20 +2602,21 @@ async def add_server_to_groups_api(
     ```bash
     curl -X POST https://registry.example.com/api/servers/groups/add \\
       -H "Authorization: Bearer $JWT_TOKEN" \\
-      -F "server_path=/myservice" \\
-      -F "groups=admin,developers"
+      -F "server_name=myservice" \\
+      -F "group_names=admin,developers"
     ```
     """
-    logger.info(f"API add to groups request from user '{user_context.get('username')}' for path '{server_path}'")
+    logger.info(f"API add to groups request from user '{user_context.get('username')}' for server '{server_name}'")
 
     # Call the existing internal_add_server_to_groups function
-    return await internal_add_server_to_groups(server_path=server_path, groups=groups)
+    return await internal_add_server_to_groups(request, server_name, group_names)
 
 
 @router.post("/servers/groups/remove")
 async def remove_server_from_groups_api(
-    server_path: Annotated[str, Form()],
-    groups: Annotated[str, Form()],
+    request: Request,
+    server_name: Annotated[str, Form()],
+    group_names: Annotated[str, Form()],
     user_context: Annotated[dict, Depends(nginx_proxied_auth)] = None,
 ):
     """
@@ -2627,8 +2629,8 @@ async def remove_server_from_groups_api(
     **Authorization:** Requires valid JWT token from auth system
 
     **Request body (form data):**
-    - `server_path` (required): Service path
-    - `groups` (required): Comma-separated list of group names to remove
+    - `server_name` (required): Service name
+    - `group_names` (required): Comma-separated list of group names to remove
 
     **Response:**
     Returns confirmation of removal from groups.
@@ -2637,19 +2639,22 @@ async def remove_server_from_groups_api(
     ```bash
     curl -X POST https://registry.example.com/api/servers/groups/remove \\
       -H "Authorization: Bearer $JWT_TOKEN" \\
-      -F "server_path=/myservice" \\
-      -F "groups=developers"
+      -F "server_name=myservice" \\
+      -F "group_names=developers"
     ```
     """
-    logger.info(f"API remove from groups request from user '{user_context.get('username')}' for path '{server_path}'")
+    logger.info(f"API remove from groups request from user '{user_context.get('username')}' for server '{server_name}'")
 
     # Call the existing internal_remove_server_from_groups function
-    return await internal_remove_server_from_groups(server_path=server_path, groups=groups)
+    return await internal_remove_server_from_groups(request, server_name, group_names)
 
 
 @router.post("/servers/groups/create")
 async def create_group_api(
+    request: Request,
     group_name: Annotated[str, Form()],
+    description: Annotated[str, Form()] = "",
+    create_in_keycloak: Annotated[bool, Form()] = True,
     user_context: Annotated[dict, Depends(nginx_proxied_auth)] = None,
 ):
     """
@@ -2663,6 +2668,8 @@ async def create_group_api(
 
     **Request body (form data):**
     - `group_name` (required): Name of the new group
+    - `description` (optional): Group description
+    - `create_in_keycloak` (optional): Whether to create in Keycloak (default: true)
 
     **Response:**
     Returns confirmation of group creation.
@@ -2671,18 +2678,23 @@ async def create_group_api(
     ```bash
     curl -X POST https://registry.example.com/api/servers/groups/create \\
       -H "Authorization: Bearer $JWT_TOKEN" \\
-      -F "group_name=new-team"
+      -F "group_name=new-team" \\
+      -F "description=Team for new project" \\
+      -F "create_in_keycloak=true"
     ```
     """
     logger.info(f"API create group request from user '{user_context.get('username')}' for group '{group_name}'")
 
     # Call the existing internal_create_group function
-    return await internal_create_group(group_name=group_name)
+    return await internal_create_group(request, group_name, description, create_in_keycloak)
 
 
 @router.post("/servers/groups/delete")
 async def delete_group_api(
+    request: Request,
     group_name: Annotated[str, Form()],
+    delete_from_keycloak: Annotated[bool, Form()] = True,
+    force: Annotated[bool, Form()] = False,
     user_context: Annotated[dict, Depends(nginx_proxied_auth)] = None,
 ):
     """
@@ -2696,6 +2708,8 @@ async def delete_group_api(
 
     **Request body (form data):**
     - `group_name` (required): Name of the group to delete
+    - `delete_from_keycloak` (optional): Whether to delete from Keycloak (default: true)
+    - `force` (optional): Force deletion of system groups (default: false)
 
     **Response:**
     Returns confirmation of group deletion.
@@ -2704,17 +2718,22 @@ async def delete_group_api(
     ```bash
     curl -X POST https://registry.example.com/api/servers/groups/delete \\
       -H "Authorization: Bearer $JWT_TOKEN" \\
-      -F "group_name=old-team"
+      -F "group_name=old-team" \\
+      -F "delete_from_keycloak=true" \\
+      -F "force=false"
     ```
     """
     logger.info(f"API delete group request from user '{user_context.get('username')}' for group '{group_name}'")
 
     # Call the existing internal_delete_group function
-    return await internal_delete_group(group_name=group_name)
+    return await internal_delete_group(request, group_name, delete_from_keycloak, force)
 
 
 @router.get("/servers/groups")
 async def list_groups_api(
+    request: Request,
+    include_keycloak: bool = True,
+    include_scopes: bool = True,
     user_context: Annotated[dict, Depends(nginx_proxied_auth)] = None,
 ):
     """
@@ -2738,7 +2757,7 @@ async def list_groups_api(
     logger.info(f"API list groups request from user '{user_context.get('username') if user_context else 'unknown'}'")
 
     # Call the existing internal_list_groups function
-    return await internal_list_groups()
+    return await internal_list_groups(request, include_keycloak, include_scopes)
 
 
 @router.get("/servers/tools/{service_path:path}")
