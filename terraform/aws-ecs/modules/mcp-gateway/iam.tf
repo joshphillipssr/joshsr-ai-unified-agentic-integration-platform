@@ -15,8 +15,8 @@ resource "aws_iam_policy" "ecs_secrets_access" {
         Resource = [
           aws_secretsmanager_secret.secret_key.arn,
           aws_secretsmanager_secret.admin_password.arn,
-          data.aws_secretsmanager_secret.keycloak_client_secret.arn,
-          data.aws_secretsmanager_secret.keycloak_m2m_client_secret.arn
+          aws_secretsmanager_secret.keycloak_client_secret.arn,
+          aws_secretsmanager_secret.keycloak_m2m_client_secret.arn
         ]
       }
     ]

@@ -4,7 +4,7 @@
 
 # Use existing hosted zone for the root domain
 data "aws_route53_zone" "root" {
-  name         = local.root_domain
+  name         = local.hosted_zone_domain
   private_zone = false
 }
 

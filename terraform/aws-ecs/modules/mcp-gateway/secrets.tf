@@ -40,11 +40,37 @@ resource "aws_secretsmanager_secret_version" "admin_password" {
   secret_string = random_password.admin_password.result
 }
 
-# Reference to externally created Keycloak client secrets
-data "aws_secretsmanager_secret" "keycloak_client_secret" {
-  name = "mcp-gateway-keycloak-client-secret"
+# Keycloak client secrets (created with placeholder, updated by init-keycloak.sh)
+resource "aws_secretsmanager_secret" "keycloak_client_secret" {
+  name        = "mcp-gateway-keycloak-client-secret"
+  description = "Keycloak web client secret (updated by init-keycloak.sh after deployment)"
+  tags        = local.common_tags
 }
 
-data "aws_secretsmanager_secret" "keycloak_m2m_client_secret" {
-  name = "mcp-gateway-keycloak-m2m-client-secret"
+resource "aws_secretsmanager_secret_version" "keycloak_client_secret" {
+  secret_id = aws_secretsmanager_secret.keycloak_client_secret.id
+  secret_string = jsonencode({
+    client_secret = "placeholder-will-be-updated-by-init-script"
+  })
+
+  lifecycle {
+    ignore_changes = [secret_string]
+  }
+}
+
+resource "aws_secretsmanager_secret" "keycloak_m2m_client_secret" {
+  name        = "mcp-gateway-keycloak-m2m-client-secret"
+  description = "Keycloak M2M client secret (updated by init-keycloak.sh after deployment)"
+  tags        = local.common_tags
+}
+
+resource "aws_secretsmanager_secret_version" "keycloak_m2m_client_secret" {
+  secret_id = aws_secretsmanager_secret.keycloak_m2m_client_secret.id
+  secret_string = jsonencode({
+    client_secret = "placeholder-will-be-updated-by-init-script"
+  })
+
+  lifecycle {
+    ignore_changes = [secret_string]
+  }
 }

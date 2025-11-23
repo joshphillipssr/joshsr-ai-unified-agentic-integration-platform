@@ -137,7 +137,7 @@ module "ecs_service_auth" {
         },
         {
           name      = "KEYCLOAK_CLIENT_SECRET"
-          valueFrom = "${data.aws_secretsmanager_secret.keycloak_client_secret.arn}:client_secret::"
+          valueFrom = "${aws_secretsmanager_secret.keycloak_client_secret.arn}:client_secret::"
         }
       ]
 
@@ -368,11 +368,11 @@ module "ecs_service_registry" {
         },
         {
           name      = "KEYCLOAK_CLIENT_SECRET"
-          valueFrom = "${data.aws_secretsmanager_secret.keycloak_client_secret.arn}:client_secret::"
+          valueFrom = "${aws_secretsmanager_secret.keycloak_client_secret.arn}:client_secret::"
         },
         {
           name      = "KEYCLOAK_M2M_CLIENT_SECRET"
-          valueFrom = "${data.aws_secretsmanager_secret.keycloak_m2m_client_secret.arn}:client_secret::"
+          valueFrom = "${aws_secretsmanager_secret.keycloak_m2m_client_secret.arn}:client_secret::"
         }
       ]
 
