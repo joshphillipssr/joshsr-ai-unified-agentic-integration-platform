@@ -63,8 +63,16 @@ Anthropic Registry API (v0.1):
     # Get server details
     uv run python registry_management.py anthropic-get --server-name "io.mcpgateway/example-server" --version latest
 
-Environment Variables (Required):
-    REGISTRY_URL: Registry base URL (e.g., https://registry.mycorp.click) - REQUIRED
+Global Options (can be set via environment variables or command-line arguments):
+    --registry-url URL       Registry base URL (overrides REGISTRY_URL env var)
+    --aws-region REGION      AWS region (overrides AWS_REGION env var)
+    --keycloak-url URL       Keycloak base URL (overrides KEYCLOAK_URL env var)
+    --token-file PATH        Path to file containing JWT token (bypasses token script)
+
+Environment Variables (used if command-line options not provided):
+    REGISTRY_URL: Registry base URL (e.g., https://registry.mycorp.click)
+    AWS_REGION: AWS region where Keycloak and SSM are deployed (e.g., us-east-1)
+    KEYCLOAK_URL: Keycloak base URL (e.g., https://kc.us-east-1.mycorp.click)
 
 Environment Variables (Optional):
     CLIENT_NAME: Keycloak client name (default: registry-admin-bot)
@@ -107,25 +115,32 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def _get_registry_url() -> str:
+def _get_registry_url(
+    cli_value: Optional[str] = None
+) -> str:
     """
-    Get registry URL from environment variable.
+    Get registry URL from command-line argument or environment variable.
+
+    Args:
+        cli_value: Command-line argument value (overrides environment variable)
 
     Returns:
         Registry base URL
 
     Raises:
-        ValueError: If REGISTRY_URL environment variable is not set
+        ValueError: If REGISTRY_URL is not provided
     """
-    registry_url = os.getenv("REGISTRY_URL")
+    registry_url = cli_value or os.getenv("REGISTRY_URL")
     if not registry_url:
         raise ValueError(
-            "REGISTRY_URL environment variable is required.\n"
-            "Please set it before running this script:\n"
-            "  export REGISTRY_URL=https://registry.mycorp.click"
+            "REGISTRY_URL is required.\n"
+            "Set via environment variable or --registry-url option:\n"
+            "  export REGISTRY_URL=https://registry.mycorp.click\n"
+            "  OR\n"
+            "  --registry-url https://registry.mycorp.click"
         )
 
-    logger.debug(f"Using registry URL from environment: {registry_url}")
+    logger.debug(f"Using registry URL: {registry_url}")
     return registry_url
 
 
@@ -156,9 +171,16 @@ def _get_token_script() -> str:
     return script_path
 
 
-def _get_jwt_token() -> str:
+def _get_jwt_token(
+    aws_region: Optional[str] = None,
+    keycloak_url: Optional[str] = None
+) -> str:
     """
     Retrieve JWT token using get-m2m-token.sh script.
+
+    Args:
+        aws_region: AWS region (passed to script via --aws-region)
+        keycloak_url: Keycloak URL (passed to script via --keycloak-url)
 
     Returns:
         JWT access token
@@ -173,8 +195,16 @@ def _get_jwt_token() -> str:
         # Redact client name in logs for security
         logger.debug(f"Retrieving token for client: {client_name}")
 
+        # Build command with optional arguments
+        cmd = [script_path]
+        if aws_region:
+            cmd.extend(["--aws-region", aws_region])
+        if keycloak_url:
+            cmd.extend(["--keycloak-url", keycloak_url])
+        cmd.append(client_name)
+
         result = subprocess.run(
-            [script_path, client_name],
+            cmd,
             capture_output=True,
             text=True,
             check=True
@@ -224,19 +254,49 @@ def _load_json_config(config_path: str) -> Dict[str, Any]:
     return config
 
 
-def _create_client() -> RegistryClient:
+def _create_client(
+    args: argparse.Namespace
+) -> RegistryClient:
     """
     Create and return a configured RegistryClient instance.
+
+    Args:
+        args: Command arguments containing optional CLI values
 
     Returns:
         RegistryClient instance
 
     Raises:
         RuntimeError: If token retrieval fails
+        FileNotFoundError: If token file not found
     """
-    token = _get_jwt_token()
+    # Check if token file is provided
+    if hasattr(args, 'token_file') and args.token_file:
+        token_path = Path(args.token_file)
+        if not token_path.exists():
+            raise FileNotFoundError(f"Token file not found: {args.token_file}")
+
+        logger.debug(f"Loading token from file: {args.token_file}")
+        token = token_path.read_text().strip()
+
+        if not token:
+            raise RuntimeError(f"Empty token in file: {args.token_file}")
+
+        # Redact token in logs - show only first 8 characters
+        redacted_token = f"{token[:8]}..." if len(token) > 8 else "***"
+        logger.debug(f"Successfully loaded token from file: {redacted_token}")
+    else:
+        # Get token using script
+        aws_region = args.aws_region or os.getenv("AWS_REGION")
+        keycloak_url = args.keycloak_url or os.getenv("KEYCLOAK_URL")
+
+        token = _get_jwt_token(
+            aws_region=aws_region,
+            keycloak_url=keycloak_url
+        )
+
     return RegistryClient(
-        registry_url=_get_registry_url(),
+        registry_url=_get_registry_url(args.registry_url),
         token=token
     )
 
@@ -269,7 +329,7 @@ def cmd_register(args: argparse.Namespace) -> int:
             overwrite=args.overwrite
         )
 
-        client = _create_client()
+        client = _create_client(args)
         response = client.register_service(registration)
 
         logger.info(f"Server registered successfully: {response.path}")
@@ -298,7 +358,7 @@ def cmd_list(args: argparse.Namespace) -> int:
         Exit code (0 for success, 1 for failure)
     """
     try:
-        client = _create_client()
+        client = _create_client(args)
         response = client.list_services()
 
         if not response.servers:
@@ -340,7 +400,7 @@ def cmd_toggle(args: argparse.Namespace) -> int:
         Exit code (0 for success, 1 for failure)
     """
     try:
-        client = _create_client()
+        client = _create_client(args)
         response = client.toggle_service(args.path)
 
         status = "enabled" if response.is_enabled else "disabled"
@@ -370,7 +430,7 @@ def cmd_remove(args: argparse.Namespace) -> int:
                 logger.info("Operation cancelled")
                 return 0
 
-        client = _create_client()
+        client = _create_client(args)
         response = client.remove_service(args.path)
 
         logger.info(f"Server removed successfully: {args.path}")
@@ -392,7 +452,7 @@ def cmd_healthcheck(args: argparse.Namespace) -> int:
         Exit code (0 for success, 1 for failure)
     """
     try:
-        client = _create_client()
+        client = _create_client(args)
         response = client.healthcheck()
 
         logger.info(f"Health check status: {response.get('status', 'unknown')}")
@@ -417,7 +477,7 @@ def cmd_add_to_groups(args: argparse.Namespace) -> int:
     """
     try:
         groups = [g.strip() for g in args.groups.split(",")]
-        client = _create_client()
+        client = _create_client(args)
         response = client.add_server_to_groups(args.server, groups)
 
         logger.info(f"Server {args.server} added to groups: {', '.join(groups)}")
@@ -440,7 +500,7 @@ def cmd_remove_from_groups(args: argparse.Namespace) -> int:
     """
     try:
         groups = [g.strip() for g in args.groups.split(",")]
-        client = _create_client()
+        client = _create_client(args)
         response = client.remove_server_from_groups(args.server, groups)
 
         logger.info(f"Server {args.server} removed from groups: {', '.join(groups)}")
@@ -462,7 +522,7 @@ def cmd_create_group(args: argparse.Namespace) -> int:
         Exit code (0 for success, 1 for failure)
     """
     try:
-        client = _create_client()
+        client = _create_client(args)
         response = client.create_group(
             group_name=args.name,
             description=args.description,
@@ -494,7 +554,7 @@ def cmd_delete_group(args: argparse.Namespace) -> int:
                 logger.info("Operation cancelled")
                 return 0
 
-        client = _create_client()
+        client = _create_client(args)
         response = client.delete_group(
             group_name=args.name,
             delete_from_keycloak=args.keycloak,
@@ -520,7 +580,7 @@ def cmd_list_groups(args: argparse.Namespace) -> int:
         Exit code (0 for success, 1 for failure)
     """
     try:
-        client = _create_client()
+        client = _create_client(args)
         response = client.list_groups(
             include_keycloak=not args.no_keycloak,
             include_scopes=not args.no_scopes
@@ -582,7 +642,8 @@ def cmd_agent_register(args: argparse.Namespace) -> int:
             skill_dict = {
                 'id': skill_id,  # Always include id field
                 'name': skill_name,
-                'description': skill_data.get('description', '')
+                'description': skill_data.get('description', ''),
+                'tags': skill_data.get('tags', [])  # Include tags field
             }
             # Use 'input_schema' if present, otherwise use 'parameters'
             if 'input_schema' in skill_data:
@@ -639,7 +700,7 @@ def cmd_agent_register(args: argparse.Namespace) -> int:
         config = {k: v for k, v in config.items() if k in valid_fields}
 
         agent = AgentRegistration(**config)
-        client = _create_client()
+        client = _create_client(args)
         response = client.register_agent(agent)
 
         logger.info(f"Agent registered successfully: {response.agent.name} at {response.agent.path}")
@@ -672,7 +733,7 @@ def cmd_agent_list(args: argparse.Namespace) -> int:
         Exit code (0 for success, 1 for failure)
     """
     try:
-        client = _create_client()
+        client = _create_client(args)
         response = client.list_agents(
             query=args.query if hasattr(args, 'query') else None,
             enabled_only=args.enabled_only if hasattr(args, 'enabled_only') else False,
@@ -714,7 +775,7 @@ def cmd_agent_get(args: argparse.Namespace) -> int:
         Exit code (0 for success, 1 for failure)
     """
     try:
-        client = _create_client()
+        client = _create_client(args)
         agent = client.get_agent(args.path)
 
         logger.info(f"Retrieved agent: {agent.name}")
@@ -827,7 +888,7 @@ def cmd_agent_update(args: argparse.Namespace) -> int:
         config = {k: v for k, v in config.items() if k in valid_fields}
 
         agent = AgentRegistration(**config)
-        client = _create_client()
+        client = _create_client(args)
         response = client.update_agent(args.path, agent)
 
         logger.info(f"Agent updated successfully: {response.name}")
@@ -856,7 +917,7 @@ def cmd_agent_delete(args: argparse.Namespace) -> int:
                 logger.info("Operation cancelled")
                 return 0
 
-        client = _create_client()
+        client = _create_client(args)
         client.delete_agent(args.path)
 
         logger.info(f"Agent deleted successfully: {args.path}")
@@ -878,7 +939,7 @@ def cmd_agent_toggle(args: argparse.Namespace) -> int:
         Exit code (0 for success, 1 for failure)
     """
     try:
-        client = _create_client()
+        client = _create_client(args)
         response = client.toggle_agent(args.path, args.enabled)
 
         logger.info(f"Agent {response.path} is now {'enabled' if response.is_enabled else 'disabled'}")
@@ -903,7 +964,7 @@ def cmd_agent_discover(args: argparse.Namespace) -> int:
         skills = [s.strip() for s in args.skills.split(',')]
         tags = [t.strip() for t in args.tags.split(',')] if args.tags else None
 
-        client = _create_client()
+        client = _create_client(args)
         response = client.discover_agents_by_skills(
             skills=skills,
             tags=tags,
@@ -939,7 +1000,7 @@ def cmd_agent_search(args: argparse.Namespace) -> int:
         Exit code (0 for success, 1 for failure)
     """
     try:
-        client = _create_client()
+        client = _create_client(args)
         response = client.discover_agents_semantic(
             query=args.query,
             max_results=args.max_results
@@ -974,7 +1035,7 @@ def cmd_anthropic_list_servers(args: argparse.Namespace) -> int:
         Exit code (0 for success, 1 for failure)
     """
     try:
-        client = _create_client()
+        client = _create_client(args)
         result: AnthropicServerList = client.anthropic_list_servers(limit=args.limit)
 
         # Print raw JSON if requested
@@ -1022,7 +1083,7 @@ def cmd_anthropic_list_versions(args: argparse.Namespace) -> int:
         Exit code (0 for success, 1 for failure)
     """
     try:
-        client = _create_client()
+        client = _create_client(args)
         result: AnthropicServerList = client.anthropic_list_server_versions(
             server_name=args.server_name
         )
@@ -1059,7 +1120,7 @@ def cmd_anthropic_get_server(args: argparse.Namespace) -> int:
         Exit code (0 for success, 1 for failure)
     """
     try:
-        client = _create_client()
+        client = _create_client(args)
         result: AnthropicServerResponse = client.anthropic_get_server_version(
             server_name=args.server_name,
             version=args.version,
@@ -1121,14 +1182,32 @@ def main() -> int:
         description="MCP Gateway Registry Management CLI",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Environment Variables:
-  REGISTRY_URL        Registry base URL (default: https://registry.mycorp.click)
+Environment Variables (used if command-line options not provided):
+  REGISTRY_URL        Registry base URL
+  AWS_REGION          AWS region where Keycloak and SSM are deployed
+  KEYCLOAK_URL        Keycloak base URL
   CLIENT_NAME         Keycloak client name (default: registry-admin-bot)
   GET_TOKEN_SCRIPT    Path to get-m2m-token.sh script
 
 Examples:
-  # Register a server
+  # Register a server (using environment variables)
+  export REGISTRY_URL=https://registry.us-east-1.mycorp.click
+  export AWS_REGION=us-east-1
+  export KEYCLOAK_URL=https://kc.us-east-1.mycorp.click
   uv run python registry_management.py register --config server-config.json
+
+  # Register a server (using command-line arguments)
+  uv run python registry_management.py \\
+    --registry-url https://registry.us-east-1.mycorp.click \\
+    --aws-region us-east-1 \\
+    --keycloak-url https://kc.us-east-1.mycorp.click \\
+    register --config server-config.json
+
+  # Register a server (using token file)
+  uv run python registry_management.py \\
+    --registry-url https://registry.us-east-1.mycorp.click \\
+    --token-file /path/to/token.txt \\
+    register --config server-config.json
 
   # List all servers
   uv run python registry_management.py list
@@ -1139,6 +1218,26 @@ Examples:
   # Add server to groups
   uv run python registry_management.py add-to-groups --server my-server --groups finance,analytics
         """
+    )
+
+    parser.add_argument(
+        "--registry-url",
+        help="Registry base URL (overrides REGISTRY_URL env var)"
+    )
+
+    parser.add_argument(
+        "--aws-region",
+        help="AWS region (overrides AWS_REGION env var)"
+    )
+
+    parser.add_argument(
+        "--keycloak-url",
+        help="Keycloak base URL (overrides KEYCLOAK_URL env var)"
+    )
+
+    parser.add_argument(
+        "--token-file",
+        help="Path to file containing JWT token (bypasses token script)"
     )
 
     parser.add_argument(

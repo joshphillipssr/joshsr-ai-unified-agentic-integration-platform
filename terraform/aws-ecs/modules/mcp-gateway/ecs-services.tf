@@ -98,7 +98,7 @@ module "ecs_service_auth" {
         },
         {
           name  = "AUTH_SERVER_EXTERNAL_URL"
-          value = "https://${var.domain_name}:8888"
+          value = "https://${var.domain_name}"
         },
         {
           name  = "AWS_REGION"
@@ -962,7 +962,7 @@ module "ecs_service_flight_booking_agent" {
     namespace = aws_service_discovery_private_dns_namespace.mcp.arn
     service = [{
       client_alias = {
-        port     = 9001
+        port     = 9000
         dns_name = "flight-booking-agent"
       }
       port_name      = "flight-booking"
@@ -981,7 +981,7 @@ module "ecs_service_flight_booking_agent" {
       portMappings = [
         {
           name          = "flight-booking"
-          containerPort = 9001
+          containerPort = 9000
           protocol      = "tcp"
         }
       ]
@@ -1002,7 +1002,7 @@ module "ecs_service_flight_booking_agent" {
       cloudwatch_log_group_retention_in_days = 30
 
       healthCheck = {
-        command     = ["CMD-SHELL", "curl -f http://localhost:9001/ping || exit 1"]
+        command     = ["CMD-SHELL", "curl -f http://localhost:9000/ping || exit 1"]
         interval    = 30
         timeout     = 5
         retries     = 3
@@ -1015,8 +1015,8 @@ module "ecs_service_flight_booking_agent" {
   security_group_ingress_rules = {
     service_connect = {
       description = "Service Connect - A2A protocol"
-      from_port   = 9001
-      to_port     = 9001
+      from_port   = 9000
+      to_port     = 9000
       ip_protocol = "tcp"
       cidr_ipv4   = data.aws_vpc.vpc.cidr_block
     }
@@ -1083,7 +1083,7 @@ module "ecs_service_travel_assistant_agent" {
     namespace = aws_service_discovery_private_dns_namespace.mcp.arn
     service = [{
       client_alias = {
-        port     = 9002
+        port     = 9000
         dns_name = "travel-assistant-agent"
       }
       port_name      = "travel-assistant"
@@ -1102,7 +1102,7 @@ module "ecs_service_travel_assistant_agent" {
       portMappings = [
         {
           name          = "travel-assistant"
-          containerPort = 9002
+          containerPort = 9000
           protocol      = "tcp"
         }
       ]
@@ -1123,7 +1123,7 @@ module "ecs_service_travel_assistant_agent" {
       cloudwatch_log_group_retention_in_days = 30
 
       healthCheck = {
-        command     = ["CMD-SHELL", "curl -f http://localhost:9002/ping || exit 1"]
+        command     = ["CMD-SHELL", "curl -f http://localhost:9000/ping || exit 1"]
         interval    = 30
         timeout     = 5
         retries     = 3
@@ -1136,8 +1136,8 @@ module "ecs_service_travel_assistant_agent" {
   security_group_ingress_rules = {
     service_connect = {
       description = "Service Connect - A2A protocol"
-      from_port   = 9002
-      to_port     = 9002
+      from_port   = 9000
+      to_port     = 9000
       ip_protocol = "tcp"
       cidr_ipv4   = data.aws_vpc.vpc.cidr_block
     }

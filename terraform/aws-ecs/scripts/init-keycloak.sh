@@ -136,19 +136,23 @@ create_clients() {
     echo "Creating OAuth2 clients..."
     
     # Create web client
+    # Ensure we're using HTTPS URLs for redirect URIs
+    local registry_url="${REGISTRY_URL:-http://localhost:7860}"
+    local auth_callback_url="${registry_url}/oauth2/callback/keycloak"
+
     local web_client_json='{
         "clientId": "mcp-gateway-web",
         "name": "MCP Gateway Web Client",
         "enabled": true,
         "clientAuthenticatorType": "client-secret",
         "redirectUris": [
-            "'${AUTH_SERVER_EXTERNAL_URL:-http://localhost:8888}'/oauth2/callback/keycloak",
-            "'${REGISTRY_URL:-http://localhost:7860}'/*",
+            "'${auth_callback_url}'",
+            "'${registry_url}'/*",
             "http://localhost:7860/*",
             "http://localhost:8888/*"
         ],
         "webOrigins": [
-            "'${REGISTRY_URL:-http://localhost:7860}'",
+            "'${registry_url}'",
             "http://localhost:7860",
             "+"
         ],
@@ -483,6 +487,36 @@ create_service_account_clients() {
             echo "    - Service account assigned to group: $group_name"
         else
             echo -e "${YELLOW}    - Warning: Could not assign to group (HTTP $group_response)${NC}"
+        fi
+
+        # Add groups mapper to the client so groups appear in JWT token
+        echo "    - Adding groups mapper to client..."
+        local groups_mapper_json='{
+            "name": "groups",
+            "protocol": "openid-connect",
+            "protocolMapper": "oidc-group-membership-mapper",
+            "consentRequired": false,
+            "config": {
+                "full.path": "false",
+                "id.token.claim": "true",
+                "access.token.claim": "true",
+                "claim.name": "groups",
+                "userinfo.token.claim": "true"
+            }
+        }'
+
+        local mapper_response=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST "${KEYCLOAK_URL}/admin/realms/${REALM}/clients/${client_uuid}/protocol-mappers/models" \
+            -H "Authorization: Bearer ${token}" \
+            -H "Content-Type: application/json" \
+            -d "$groups_mapper_json")
+
+        if [ "$mapper_response" = "201" ]; then
+            echo "    - Groups mapper created successfully"
+        elif [ "$mapper_response" = "409" ]; then
+            echo "    - Groups mapper already exists"
+        else
+            echo -e "${YELLOW}    - Warning: Could not create groups mapper (HTTP $mapper_response)${NC}"
         fi
     done
 

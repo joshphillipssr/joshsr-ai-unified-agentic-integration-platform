@@ -132,7 +132,7 @@ resource "aws_kms_alias" "rds" {
 
 # IAM Role for RDS Proxy
 resource "aws_iam_role" "rds_proxy_role" {
-  name = "keycloak-rds-proxy-role"
+  name = "keycloak-rds-proxy-role-${var.aws_region}"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"

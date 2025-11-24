@@ -44,7 +44,7 @@ images:
 
   # Keycloak Identity Provider
   keycloak:
-    repo_name: "mcp-gateway-keycloak"
+    repo_name: "keycloak"
     dockerfile: "docker/keycloak/Dockerfile"
     context: "docker/keycloak"
     description: "Keycloak identity provider"

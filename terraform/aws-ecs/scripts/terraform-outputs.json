@@ -22,7 +22,7 @@
   "ecs_cluster_arn": {
     "sensitive": false,
     "type": "string",
-    "value": "arn:aws:ecs:us-west-2:605134468121:cluster/mcp-gateway-ecs-cluster"
+    "value": "arn:aws:ecs:us-east-1:605134468121:cluster/mcp-gateway-ecs-cluster"
   },
   "ecs_cluster_name": {
     "sensitive": false,
@@ -32,32 +32,32 @@
   "keycloak_admin_console": {
     "sensitive": false,
     "type": "string",
-    "value": "https://kc.mycorp.click/admin"
+    "value": "https://kc.us-east-1.mycorp.click/admin"
   },
   "keycloak_alb_dns": {
     "sensitive": false,
     "type": "string",
-    "value": "keycloak-alb-441165282.us-west-2.elb.amazonaws.com"
+    "value": "keycloak-alb-35816007.us-east-1.elb.amazonaws.com"
   },
   "keycloak_ecr_repository": {
     "sensitive": false,
     "type": "string",
-    "value": "605134468121.dkr.ecr.us-west-2.amazonaws.com/keycloak"
+    "value": "605134468121.dkr.ecr.us-east-1.amazonaws.com/keycloak"
   },
   "keycloak_url": {
     "sensitive": false,
     "type": "string",
-    "value": "https://kc.mycorp.click"
+    "value": "https://kc.us-east-1.mycorp.click"
   },
   "mcp_gateway_alb_dns": {
     "sensitive": false,
     "type": "string",
-    "value": "mcp-gateway-v2-alb-1744109939.us-west-2.elb.amazonaws.com"
+    "value": "mcp-gateway-v2-alb-1665513140.us-east-1.elb.amazonaws.com"
   },
   "mcp_gateway_auth_url": {
     "sensitive": false,
     "type": "string",
-    "value": "https://registry.mycorp.click:8888"
+    "value": "https://registry.us-east-1.mycorp.click:8888"
   },
   "mcp_gateway_autoscaling_enabled": {
     "sensitive": false,
@@ -76,21 +76,21 @@
       }
     ],
     "value": {
-      "auth_config": "fsap-04fa8dde0c182775d",
-      "logs": "fsap-0d5b95575c6d76c01",
-      "models": "fsap-0d45a41ba47c9d108",
-      "servers": "fsap-07ece951ca17a39ab"
+      "auth_config": "fsap-076857025a3c66107",
+      "logs": "fsap-09a9c7b1dd98dd869",
+      "models": "fsap-0d4f23a2b0423bb21",
+      "servers": "fsap-0ec41d04431c89120"
     }
   },
   "mcp_gateway_efs_arn": {
     "sensitive": false,
     "type": "string",
-    "value": "arn:aws:elasticfilesystem:us-west-2:605134468121:file-system/fs-0f9a445fa0ae55119"
+    "value": "arn:aws:elasticfilesystem:us-east-1:605134468121:file-system/fs-0831554f0609021ca"
   },
   "mcp_gateway_efs_id": {
     "sensitive": false,
     "type": "string",
-    "value": "fs-0f9a445fa0ae55119"
+    "value": "fs-0831554f0609021ca"
   },
   "mcp_gateway_https_enabled": {
     "sensitive": false,
@@ -105,7 +105,7 @@
   "mcp_gateway_url": {
     "sensitive": false,
     "type": "string",
-    "value": "https://registry.mycorp.click"
+    "value": "https://registry.us-east-1.mycorp.click"
   },
   "private_subnet_ids": {
     "sensitive": false,
@@ -118,9 +118,9 @@
       ]
     ],
     "value": [
-      "subnet-0b5eb80ca8fa1cd82",
-      "subnet-056bb8feff2b7c0d9",
-      "subnet-0b792532624087047"
+      "subnet-0e4a013e294aacdf1",
+      "subnet-093c43d2a0bf8f85b",
+      "subnet-0276c070d2c0ffbfa"
     ]
   },
   "public_subnet_ids": {
@@ -134,15 +134,15 @@
       ]
     ],
     "value": [
-      "subnet-067e919ff6d9fa673",
-      "subnet-046fc71554f05a4ff",
-      "subnet-075a33aaddc35b188"
+      "subnet-0d57680fd8e7ca617",
+      "subnet-03bda132fb5c781c9",
+      "subnet-0dccff85dd79e1778"
     ]
   },
   "registry_certificate_arn": {
     "sensitive": false,
     "type": "string",
-    "value": "arn:aws:acm:us-west-2:605134468121:certificate/e4af93fb-c417-43b7-83ec-76f13297c2d1"
+    "value": "arn:aws:acm:us-east-1:605134468121:certificate/af209ca4-8c3c-4ee8-bc84-a4943600740f"
   },
   "registry_dns_record": {
     "sensitive": false,
@@ -155,7 +155,7 @@
       }
     ],
     "value": {
-      "name": "registry.mycorp.click",
+      "name": "registry.us-east-1.mycorp.click",
       "type": "A",
       "zone_id": "Z06844641MWBZH6RFWBDI"
     }
@@ -163,7 +163,7 @@
   "registry_url": {
     "sensitive": false,
     "type": "string",
-    "value": "https://registry.mycorp.click"
+    "value": "https://registry.us-east-1.mycorp.click"
   },
   "vpc_cidr": {
     "sensitive": false,
@@ -173,6 +173,6 @@
   "vpc_id": {
     "sensitive": false,
     "type": "string",
-    "value": "vpc-03e5ac90fafe98a38"
+    "value": "vpc-0465eac5200ac9c5a"
   }
 }

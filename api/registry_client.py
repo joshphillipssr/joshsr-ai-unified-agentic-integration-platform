@@ -587,16 +587,40 @@ class RegistryClient:
 
         logger.debug(f"{method} {url}")
 
-        response = requests.request(
-            method=method,
-            url=url,
-            headers=headers,
-            data=data,
-            params=params,
-            timeout=30
-        )
+        # Determine content type based on endpoint
+        # Agent registration uses JSON, server registration uses form data
+        if endpoint == "/api/agents/register":
+            # Send as JSON for agent registration
+            response = requests.request(
+                method=method,
+                url=url,
+                headers=headers,
+                json=data,
+                params=params,
+                timeout=30
+            )
+        else:
+            # Send as form-encoded for server registration
+            response = requests.request(
+                method=method,
+                url=url,
+                headers=headers,
+                data=data,
+                params=params,
+                timeout=30
+            )
 
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except requests.HTTPError as e:
+            # For 422 errors, try to extract validation details
+            if response.status_code == 422:
+                try:
+                    error_detail = response.json()
+                    logger.error(f"Validation error details: {json.dumps(error_detail, indent=2)}")
+                except Exception:
+                    pass
+            raise
         return response
 
     def register_service(

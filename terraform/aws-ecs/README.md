@@ -667,6 +667,12 @@ registry_service_name = "mcp-gateway-v2-registry"
 auth_service_name = "mcp-gateway-v2-auth"
 keycloak_service_name = "keycloak"
 rds_cluster_endpoint = "mcp-gateway-keycloak-cluster.cluster-xxx.us-east-1.rds.amazonaws.com"
+
+# Save terraform outputs to JSON file for later use
+./scripts/save-terraform-outputs.sh
+
+# This creates terraform-outputs.json with all output values
+# Useful for automation and other scripts
 ```
 
 ### Step 2: Wait for DNS Propagation
@@ -798,7 +804,33 @@ Next steps:
 # → Already initialized, safe to ignore or delete realm in UI first
 ```
 
-### Step 5: Verify Application Access
+### Step 5: Initialize MCP Gateway Scopes on EFS
+
+Run the scopes initialization task to copy the scopes.yml file to the EFS mount:
+
+```bash
+scripts/run-scopes-init-task.sh --skip-build
+```
+
+This task:
+- Uses the existing scopes-init Docker image from ECR
+- Runs a one-time ECS Fargate task
+- Copies `scopes.yml` to the EFS mount at `/auth_config/scopes.yml`
+- Makes it available to both registry and auth-server containers
+
+Expected output:
+```
+[INFO] ==========================================
+[INFO] Scopes Init ECS Task Runner
+[INFO] ==========================================
+[INFO] AWS Region: us-east-1
+[INFO] Skip Build: true
+...
+[SUCCESS] Task completed successfully!
+[INFO] The scopes.yml file should now be available on the EFS mount
+```
+
+### Step 6: Verify Application Access
 
 Test all endpoints to ensure complete deployment:
 
@@ -823,7 +855,81 @@ curl https://kc.us-east-1.mycorp.click/realms/mcp-gateway
 # Expected: JSON with realm configuration
 ```
 
-### Step 6: Review Logs (Verify No Errors)
+### Step 7: Access Web UI and Register Example Servers/Agents
+
+**Open the Registry UI in your browser:**
+
+```bash
+# Open the registry URL (replace with your domain)
+open https://registry.us-east-1.mycorp.click
+```
+
+You should see the login page. Login with the default admin credentials for the **mcp-gateway** realm:
+- **Username**: `admin`
+- **Password**: `changeme` (default, or set via `INITIAL_ADMIN_PASSWORD` environment variable when running init-keycloak.sh)
+
+**Note**: This is different from the Keycloak admin console password (`keycloak_admin_password` in terraform.tfvars), which is used to access the Keycloak admin console at `https://kc.us-east-1.mycorp.click/admin`.
+
+![MCP Gateway Registry First Login](img/MCP-Gateway-Registry-first-login.png)
+
+After successful login, you'll see the empty Registry dashboard showing 0 servers and 0 agents.
+
+**Register Example MCP Servers:**
+
+Now let's register some example MCP servers using the CLI tool. First, set up the environment:
+
+```bash
+cd /home/ubuntu/repos/mcp-gateway-registry
+
+# Set registry URL (replace with your domain)
+export REGISTRY_URL="https://registry.us-east-1.mycorp.click"
+
+# Register Cloudflare Docs server
+uv run python api/registry_management.py register \
+  --config cli/examples/cloudflare-docs-server-config.json
+
+# Register Context7 server
+uv run python api/registry_management.py register \
+  --config cli/examples/context7-server-config.json
+
+# Register MCPGW server (registry management tools)
+uv run python api/registry_management.py register \
+  --config cli/examples/mcpgw.json
+
+# Register CurrentTime server
+uv run python api/registry_management.py register \
+  --config cli/examples/currenttime.json
+```
+
+**Register Example A2A Agents:**
+
+```bash
+# Register Flight Booking Agent
+uv run python api/registry_management.py agent-register \
+  --config cli/examples/flight_booking_agent_card.json
+
+# Register Travel Assistant Agent
+uv run python api/registry_management.py agent-register \
+  --config cli/examples/travel_assistant_agent_card.json
+```
+
+**Verify Registration:**
+
+Refresh the browser and you should now see:
+- 4 MCP servers (Cloudflare Docs, Context7, MCPGW, CurrentTime)
+- 2 A2A agents (Flight Booking Agent, Travel Assistant Agent)
+
+You can also verify via API:
+
+```bash
+# List all registered servers
+curl https://registry.us-east-1.mycorp.click/api/servers
+
+# List all registered agents
+curl https://registry.us-east-1.mycorp.click/api/agents
+```
+
+### Step 8: Review Logs (Verify No Errors)
 
 ```bash
 cd terraform/aws-ecs
@@ -848,46 +954,18 @@ cd terraform/aws-ecs
 # - "Permission denied"
 ```
 
-### Step 7: Test End-to-End Workflow
+### Step 9: Test Complete Workflow
 
-Verify the complete MCP server registration and discovery flow:
+**Deployment Complete!** Your MCP Gateway Registry is now fully operational with example servers and agents registered.
 
-```bash
-# 1. Register a test MCP server
-curl -X POST https://registry.us-east-1.mycorp.click/api/servers \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "test-server",
-    "description": "Test MCP Server",
-    "url": "https://example.com/mcp",
-    "category": "utilities"
-  }'
+You can now:
+- Browse servers and agents in the Web UI
+- Use the "Get JWT Token" button in the UI to generate M2M tokens for API access
+- Test MCP server connections through the gateway
+- Explore semantic search for servers and agents
+- Manage server/agent permissions and groups via Keycloak
 
-# Expected: {"id": "...", "name": "test-server", "status": "registered"}
-
-# 2. List all registered servers
-curl https://registry.us-east-1.mycorp.click/api/servers
-
-# Expected: [{...test-server...}]
-
-# 3. Search for server
-curl "https://registry.us-east-1.mycorp.click/api/servers?search=test"
-
-# Expected: [{...test-server...}]
-
-# 4. Get server details
-SERVER_ID="<id-from-step-1>"
-curl "https://registry.us-east-1.mycorp.click/api/servers/$SERVER_ID"
-
-# Expected: {...server details...}
-
-# 5. Delete test server (cleanup)
-curl -X DELETE "https://registry.us-east-1.mycorp.click/api/servers/$SERVER_ID"
-
-# Expected: {"status": "deleted"}
-```
-
-**Deployment Complete!** Your MCP Gateway Registry is now fully operational.
+For advanced usage, see the [Operations and Maintenance](#operations-and-maintenance) section below.
 
 ## Operations and Maintenance
 

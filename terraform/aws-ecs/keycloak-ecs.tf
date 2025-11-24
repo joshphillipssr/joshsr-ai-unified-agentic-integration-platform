@@ -99,7 +99,7 @@ resource "aws_cloudwatch_log_group" "keycloak" {
 
 # ECS Task Execution Role
 resource "aws_iam_role" "keycloak_task_exec_role" {
-  name = "keycloak-task-exec-role"
+  name = "keycloak-task-exec-role-${var.aws_region}"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -178,7 +178,7 @@ resource "aws_iam_role_policy" "keycloak_task_exec_logs_policy" {
 
 # ECS Task Role
 resource "aws_iam_role" "keycloak_task_role" {
-  name = "keycloak-task-role"
+  name = "keycloak-task-role-${var.aws_region}"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"

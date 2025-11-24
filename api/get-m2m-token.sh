@@ -1,7 +1,16 @@
 #!/bin/bash
 
 # Script to get M2M JWT token for a Keycloak client with smart caching
-# Usage: ./get-m2m-token.sh <client-name>
+# Usage: ./get-m2m-token.sh [OPTIONS] [client-name]
+#
+# Options:
+#   --aws-region REGION      AWS region (overrides AWS_REGION env var)
+#   --keycloak-url URL       Keycloak base URL (overrides KEYCLOAK_URL env var)
+#   --help                   Show this help message
+#
+# Environment variables (used if command-line options not provided):
+#   AWS_REGION - AWS region where Keycloak and SSM are deployed (e.g., us-east-1)
+#   KEYCLOAK_URL - Keycloak base URL (e.g., https://kc.us-east-1.mycorp.click)
 #
 # This script implements smart token management:
 # 1. First checks SSM Parameter Store for cached token
@@ -23,15 +32,77 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-# Configuration
-AWS_REGION="us-west-2"
+# Parse command-line arguments
+CLIENT_NAME=""
+CLI_AWS_REGION=""
+CLI_KEYCLOAK_URL=""
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --aws-region)
+            CLI_AWS_REGION="$2"
+            shift 2
+            ;;
+        --keycloak-url)
+            CLI_KEYCLOAK_URL="$2"
+            shift 2
+            ;;
+        --help)
+            echo "Usage: $0 [OPTIONS] [client-name]"
+            echo ""
+            echo "Options:"
+            echo "  --aws-region REGION      AWS region (overrides AWS_REGION env var)"
+            echo "  --keycloak-url URL       Keycloak base URL (overrides KEYCLOAK_URL env var)"
+            echo "  --help                   Show this help message"
+            echo ""
+            echo "Environment variables:"
+            echo "  AWS_REGION - AWS region where Keycloak and SSM are deployed"
+            echo "  KEYCLOAK_URL - Keycloak base URL"
+            exit 0
+            ;;
+        -*)
+            echo -e "${RED}Error: Unknown option: $1${NC}" >&2
+            exit 1
+            ;;
+        *)
+            CLIENT_NAME="$1"
+            shift
+            ;;
+    esac
+done
+
+# Command-line args override environment variables
+AWS_REGION="${CLI_AWS_REGION:-$AWS_REGION}"
+KEYCLOAK_URL="${CLI_KEYCLOAK_URL:-$KEYCLOAK_URL}"
+
+# Configuration - require mandatory parameters
+if [ -z "$AWS_REGION" ]; then
+    echo -e "${RED}Error: AWS_REGION is required${NC}" >&2
+    echo -e "${RED}Set via environment variable or --aws-region option:${NC}" >&2
+    echo -e "${RED}  export AWS_REGION=us-east-1${NC}" >&2
+    echo -e "${RED}  OR${NC}" >&2
+    echo -e "${RED}  $0 --aws-region us-east-1 <client-name>${NC}" >&2
+    exit 1
+fi
+
+if [ -z "$KEYCLOAK_URL" ]; then
+    echo -e "${RED}Error: KEYCLOAK_URL is required${NC}" >&2
+    echo -e "${RED}Set via environment variable or --keycloak-url option:${NC}" >&2
+    echo -e "${RED}  export KEYCLOAK_URL=https://kc.us-east-1.mycorp.click${NC}" >&2
+    echo -e "${RED}  OR${NC}" >&2
+    echo -e "${RED}  $0 --keycloak-url https://kc.us-east-1.mycorp.click <client-name>${NC}" >&2
+    exit 1
+fi
+
 REALM="mcp-gateway"
-CLIENT_NAME="${1:-registry-admin-bot}"
+CLIENT_NAME="${CLIENT_NAME:-registry-admin-bot}"
 ORIGINAL_CLIENT_NAME="${CLIENT_NAME}"
 SSM_TOKEN_PARAM="/keycloak/clients/${CLIENT_NAME}/jwt_token"
 EXPIRATION_BUFFER=60  # Refresh token if expires within 60 seconds
 
 echo -e "${YELLOW}Getting JWT token for client: $CLIENT_NAME${NC}" >&2
+echo -e "${YELLOW}Using AWS region: $AWS_REGION${NC}" >&2
+echo -e "${YELLOW}Using Keycloak URL: $KEYCLOAK_URL${NC}" >&2
 echo "" >&2
 
 # Function to check if token is expired
@@ -109,13 +180,6 @@ echo "" >&2
 
 # Step 2: Get new token from Keycloak
 echo -e "${YELLOW}Step 2: Fetching new token from Keycloak...${NC}" >&2
-
-# Load Keycloak URL from terraform outputs
-if [ -f "$TERRAFORM_OUTPUTS" ] && command -v jq &> /dev/null; then
-    KEYCLOAK_URL=$(jq -r '.keycloak_url.value // empty' "$TERRAFORM_OUTPUTS" 2>/dev/null)
-fi
-KEYCLOAK_URL="${KEYCLOAK_URL:-https://kc.mycorp.click}"
-
 echo "Keycloak URL: $KEYCLOAK_URL" >&2
 
 # Get Keycloak admin password from SSM
