@@ -123,6 +123,84 @@ export INITIAL_ADMIN_PASSWORD='YourSecurePassword123'
 | AWS CLI | >= 2.0 | [docs.aws.amazon.com/cli](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) |
 | Docker | >= 20.10 | [docs.docker.com/engine/install](https://docs.docker.com/engine/install/) |
 | Session Manager Plugin | Latest | [AWS SSM Plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html) |
+| uv | Latest | [astral.sh/uv](https://docs.astral.sh/uv/getting-started/installation/) |
+| Python | >= 3.12 | Via uv or [python.org](https://www.python.org/downloads/) |
+
+#### Installing uv (Python Package Manager)
+
+uv is required for managing Python dependencies. Install it first:
+
+```bash
+# Install uv package manager
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Restart your shell or run:
+source $HOME/.local/bin/env
+
+# Verify installation
+uv --version
+```
+
+#### Installing Terraform
+
+<details>
+<summary>Ubuntu/Debian</summary>
+
+```bash
+# Add HashiCorp GPG key
+wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+
+# Add HashiCorp repository
+echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+
+# Install Terraform
+sudo apt update && sudo apt install terraform
+
+# Verify installation
+terraform version
+```
+</details>
+
+<details>
+<summary>macOS (Homebrew)</summary>
+
+```bash
+brew tap hashicorp/tap
+brew install hashicorp/tap/terraform
+
+# Verify installation
+terraform version
+```
+</details>
+
+<details>
+<summary>Other Platforms</summary>
+
+- **macOS**: https://developer.hashicorp.com/terraform/install#darwin
+- **Windows**: https://developer.hashicorp.com/terraform/install#windows
+- **Linux (other)**: https://developer.hashicorp.com/terraform/install#linux
+- **Manual download**: https://releases.hashicorp.com/terraform/
+</details>
+
+#### Python Environment Setup (includes AWS CLI)
+
+Set up the Python virtual environment with all required dependencies:
+
+```bash
+# From the repository root directory
+cd /path/to/mcp-gateway-registry
+
+# Sync dependencies (creates .venv and installs all packages including awscli)
+uv sync
+
+# Activate the virtual environment
+source .venv/bin/activate
+
+# Verify AWS CLI is available
+aws --version
+```
+
+**Note:** The `pyproject.toml` includes `awscli` and `boto3` as dependencies, so they are automatically installed when you run `uv sync`.
 
 **Verify installations:**
 ```bash
@@ -130,6 +208,8 @@ terraform version  # Should show >= 1.5.0
 aws --version      # Should show >= 2.0
 docker --version   # Should show >= 20.10
 session-manager-plugin  # Should display version
+uv --version       # Should display version
+python --version   # Should show >= 3.12
 ```
 
 ### AWS Account Setup
@@ -813,9 +893,45 @@ Expected output:
 [INFO] The scopes.yml file should now be available on the EFS mount
 ```
 
-### Step 6: Verify Application Access
+### Step 6: Restart Registry and Auth Server Tasks
 
-Test all endpoints to ensure complete deployment:
+After initializing scopes, force restart the Registry and Auth Server ECS tasks to pick up the new scopes configuration from EFS:
+
+```bash
+# Set your region
+export AWS_REGION=us-east-1
+
+# Force restart Registry service
+aws ecs update-service \
+  --cluster mcp-gateway-ecs-cluster \
+  --service mcp-gateway-v2-registry \
+  --force-new-deployment \
+  --region $AWS_REGION
+
+# Force restart Auth Server service
+aws ecs update-service \
+  --cluster mcp-gateway-ecs-cluster \
+  --service mcp-gateway-v2-auth \
+  --force-new-deployment \
+  --region $AWS_REGION
+```
+
+**Monitor the restart progress:**
+```bash
+# Watch until Running = Desired for both services
+watch -n 10 'aws ecs describe-services \
+  --cluster mcp-gateway-ecs-cluster \
+  --services mcp-gateway-v2-registry mcp-gateway-v2-auth \
+  --region us-east-1 \
+  --query "services[*].{Service:serviceName,Running:runningCount,Desired:desiredCount}" \
+  --output table'
+```
+
+The restart typically takes 2-3 minutes. Wait until both services show `Running = Desired` before proceeding.
+
+### Step 7: Verify Application Access
+
+Test all endpoints to ensure the deployment is working:
 
 ```bash
 # 1. Test Keycloak Admin Console (browser)
@@ -838,7 +954,7 @@ curl https://kc.us-east-1.mycorp.click/realms/mcp-gateway
 # Expected: JSON with realm configuration
 ```
 
-### Step 7: Access Web UI and Register Example Servers/Agents
+### Step 8: Access Web UI and Register Example Servers/Agents
 
 **Open the Registry UI in your browser:**
 
@@ -914,7 +1030,7 @@ curl https://registry.us-east-1.mycorp.click/api/servers
 curl https://registry.us-east-1.mycorp.click/api/agents
 ```
 
-### Step 8: Review Logs (Verify No Errors)
+### Step 9: Review Logs (Verify No Errors)
 
 ```bash
 cd terraform/aws-ecs
@@ -939,7 +1055,7 @@ cd terraform/aws-ecs
 # - "Permission denied"
 ```
 
-### Step 9: Test Complete Workflow
+### Step 10: Test Complete Workflow
 
 **Deployment Complete!** Your MCP Gateway Registry is now fully operational with example servers and agents registered.
 
