@@ -70,48 +70,41 @@ The infrastructure runs on an ECS cluster with Fargate launch type, eliminating 
 
 ## Quick Start
 
-> **📖 For first-time deployments, we recommend following the detailed [Regional Deployment Guide](#regional-deployment) below for step-by-step instructions.**
+**Deployment Flow Overview:**
 
-**Deploy in 5 steps:**
-
-```bash
-# 1. Clone and navigate
-git clone <repository-url>
-cd terraform/aws-ecs
-
-# 2. Build and push containers to your target region
-export AWS_REGION=us-east-1
-cd ../.. && make build-push && cd terraform/aws-ecs
-
-# 3. Configure deployment
-cp terraform.tfvars.example terraform.tfvars
-# ⚠️ CRITICAL: See "MANDATORY: Edit Required Parameters" section below
-# Your installation will NOT work without editing these required values
-
-# 4. Deploy infrastructure (two-stage deployment)
-terraform init
-
-# Stage 1: Create and validate SSL certificates first
-terraform apply \
-  -target=aws_acm_certificate.keycloak \
-  -target=aws_acm_certificate.registry \
-  -target=aws_acm_certificate_validation.keycloak \
-  -target=aws_acm_certificate_validation.registry
-
-# Stage 2: Deploy remaining infrastructure (~10 minutes)
-terraform apply
-
-# 5. Initialize Keycloak (after DNS propagates, ~10 minutes)
-# IMPORTANT: Set the initial admin password for the mcp-gateway realm
-export INITIAL_ADMIN_PASSWORD='YourSecurePassword123'
-./scripts/init-keycloak.sh
-
-# 6. Open the Registry web interface
-# Visit https://registry.us-east-1.mycorp.click in your browser
-# Login with credentials: admin / YourSecurePassword123 (from INITIAL_ADMIN_PASSWORD)
+```
++------------------+     +-------------------+     +------------------+
+|  1. PREREQUISITES |---->|  2. BUILD & PUSH  |---->|  3. CONFIGURE    |
+|                  |     |                   |     |                  |
+| - Install uv     |     | - Set AWS_REGION  |     | - Edit tfvars    |
+| - Install        |     | - make build-push |     | - Set domain     |
+|   Terraform      |     |   (~30 min)       |     | - Set image URIs |
+| - uv sync        |     |                   |     | - Set IPs        |
++------------------+     +-------------------+     +------------------+
+                                                           |
+                                                           v
++------------------+     +-------------------+     +------------------+
+|  6. ACCESS UI    |<----|  5. INITIALIZE    |<----|  4. DEPLOY       |
+|                  |     |                   |     |                  |
+| - Login to       |     | - init-keycloak.sh|     | - terraform init |
+|   Registry UI    |     | - run-scopes-init |     | - terraform apply|
+| - Register       |     | - Restart ECS     |     |   (two-stage)    |
+|   servers/agents |     |   tasks           |     |   (~20 min)      |
++------------------+     +-------------------+     +------------------+
 ```
 
-**Note:** First-time deployments require a two-stage process due to SSL certificate dependencies. For detailed step-by-step instructions, see the [Regional Deployment](#regional-deployment) section below.
+**Total Time:** ~60-90 minutes for first deployment
+
+| Step | Description | Time | Documentation |
+|------|-------------|------|---------------|
+| 1 | Install prerequisites (uv, Terraform, Python env) | ~10 min | [Prerequisites](#prerequisites) |
+| 2 | Build and push container images to ECR | ~30 min | [Container Build](#container-build-and-deployment) |
+| 3 | Configure terraform.tfvars with your settings | ~5 min | [Regional Deployment - Step 2](#deploying-to-a-new-region) |
+| 4 | Deploy infrastructure with Terraform | ~20 min | [Regional Deployment - Step 3](#deploying-to-a-new-region) |
+| 5 | Initialize Keycloak, scopes, and restart services | ~10 min | [Post-Deployment](#post-deployment) |
+| 6 | Access UI and register example servers | ~5 min | [Post-Deployment - Step 8](#step-8-access-web-ui-and-register-example-serversagents) |
+
+**First-time users:** Follow the [Prerequisites](#prerequisites) section first, then proceed to [Regional Deployment](#regional-deployment) for detailed step-by-step instructions.
 
 ## Prerequisites
 
