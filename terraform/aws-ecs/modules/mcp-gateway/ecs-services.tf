@@ -127,6 +127,14 @@ module "ecs_service_auth" {
         {
           name  = "SCOPES_CONFIG_PATH"
           value = "/efs/auth_config/auth_config/scopes.yml"
+        },
+        {
+          name  = "SESSION_COOKIE_SECURE"
+          value = tostring(var.session_cookie_secure)
+        },
+        {
+          name  = "SESSION_COOKIE_DOMAIN"
+          value = var.session_cookie_domain
         }
       ]
 
