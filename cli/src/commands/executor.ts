@@ -118,62 +118,56 @@ async function executeMcp(command: "ping" | "list" | "init", context: CommandExe
 }
 
 async function executeServers(context: CommandExecutionContext) {
-  // Call list_services to get all registered MCP servers
-  const {handshake, response} = await executeMcpCommand(
-    "call",
-    context.gatewayUrl,
-    context.gatewayToken,
-    context.backendToken,
-    {
-      tool: "list_services",
-      args: {}
-    }
-  );
+  // Use the registry client to list servers instead of MCP call
+  const result = await callRegistryWrapper(["anthropic", "list", "--limit", "1000"], context);
 
-  // Format as compact summary to avoid terminal lag from massive JSON
-  const lines: string[] = [];
-
-  try {
-    const content = (response as any).content;
-    if (!content || !Array.isArray(content) || content.length === 0) {
-      lines.push("No response content");
-      return {lines};
-    }
-
-    const textContent = content[0].text;
-    const data = JSON.parse(textContent);
-
-    if (data && data.services && Array.isArray(data.services)) {
-      lines.push(`Found ${data.services.length} MCP servers:\n`);
-
-      data.services.forEach((service: any, index: number) => {
-        lines.push(`${index + 1}. ${service.server_name || 'Unknown'}`);
-        lines.push(`   Path: ${service.path || 'N/A'}`);
-        lines.push(`   Status: ${service.health_status || 'unknown'} ${service.is_enabled ? '(enabled)' : '(disabled)'}`);
-        if (service.description) {
-          // Truncate long descriptions
-          const desc = service.description.length > 80
-            ? service.description.substring(0, 80) + '...'
-            : service.description;
-          lines.push(`   Description: ${desc}`);
-        }
-        if (service.tags && service.tags.length > 0) {
-          lines.push(`   Tags: ${service.tags.slice(0, 5).join(', ')}${service.tags.length > 5 ? '...' : ''}`);
-        }
-        lines.push(`   Tools: ${service.num_tools || 0}`);
-        lines.push('');
-      });
-
-      lines.push(`Total: ${data.total_count || data.services.length} servers\n`);
-      lines.push('Tip: Ask "tell me more about server X" for detailed info');
-    } else {
-      lines.push("No servers found");
-    }
-  } catch (error) {
-    lines.push(`Error formatting server list: ${(error as Error).message}`);
+  if (result.exitCode !== 0) {
+    return {
+      lines: [`Error listing servers:`, result.stderr || result.stdout],
+      isError: true
+    };
   }
 
-  return {lines};
+  try {
+    const data = JSON.parse(result.stdout);
+    const servers = data.servers || [];
+
+    if (servers.length === 0) {
+      return {lines: ["No servers found."]};
+    }
+
+    const lines: string[] = [`Found ${servers.length} MCP servers:\n`];
+
+    servers.forEach((serverResponse: any, index: number) => {
+      const server = serverResponse.server || serverResponse;
+      const meta = server._meta || server.meta || {};
+      const internalMeta = meta['io.mcpgateway/internal'] || {};
+
+      lines.push(`${index + 1}. ${server.name || 'Unknown'}`);
+      lines.push(`   Path: ${internalMeta.path || 'N/A'}`);
+      lines.push(`   Status: ${internalMeta.is_enabled ? 'enabled' : 'disabled'}`);
+      if (server.description) {
+        const desc = server.description.length > 80
+          ? server.description.substring(0, 80) + '...'
+          : server.description;
+        lines.push(`   Description: ${desc}`);
+      }
+      if (server.tags && server.tags.length > 0) {
+        lines.push(`   Tags: ${server.tags.slice(0, 5).join(', ')}${server.tags.length > 5 ? '...' : ''}`);
+      }
+      if (server.tools && server.tools.length > 0) {
+        lines.push(`   Tools: ${server.tools.length}`);
+      }
+      lines.push('');
+    });
+
+    lines.push(`Total: ${servers.length} servers\n`);
+    lines.push('Tip: Ask "tell me more about server X" for detailed info');
+
+    return {lines};
+  } catch (error) {
+    return {lines: [`Error parsing server list: ${(error as Error).message}`], isError: true};
+  }
 }
 
 async function executeCall(parsed: CallCommand, context: CommandExecutionContext) {
