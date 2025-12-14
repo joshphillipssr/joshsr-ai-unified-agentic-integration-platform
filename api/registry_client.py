@@ -35,6 +35,7 @@ class HealthStatus(str, Enum):
     HEALTHY = "healthy"
     UNHEALTHY = "unhealthy"
     UNKNOWN = "unknown"
+    DISABLED = "disabled"
 
 
 class ServiceRegistration(BaseModel):
@@ -355,7 +356,7 @@ class AgentListItem(BaseModel):
     tags: List[str] = Field(default_factory=list, description="Categorization tags")
     skills: List[str] = Field(default_factory=list, description="Skill names")
     num_skills: int = Field(default=0, alias="numSkills", description="Number of skills")
-    num_stars: int = Field(default=0, alias="numStars", description="Community rating")
+    num_stars: float = Field(default=0.0, alias="numStars", description="Average community rating (0.0-5.0)")
     is_enabled: bool = Field(default=False, alias="isEnabled", description="Whether agent is enabled")
     provider: Optional[str] = Field(None, description="Agent provider")
     streaming: bool = Field(default=False, description="Supports streaming")
@@ -601,6 +602,36 @@ class M2MAccountResponse(BaseModel):
     groups: List[str] = Field(default_factory=list, description="Assigned groups")
 
 
+class GroupCreateRequest(BaseModel):
+    """Request model for creating a Keycloak group."""
+
+    name: str = Field(..., min_length=1, description="Group name")
+    description: Optional[str] = Field(None, description="Group description")
+
+
+class KeycloakGroupSummary(BaseModel):
+    """Keycloak group summary model."""
+
+    id: str = Field(..., description="Group ID")
+    name: str = Field(..., description="Group name")
+    path: str = Field(..., description="Group path")
+    attributes: Optional[Dict[str, Any]] = Field(None, description="Group attributes")
+
+
+class GroupListResponse(BaseModel):
+    """Response model for list groups endpoint."""
+
+    groups: List[KeycloakGroupSummary] = Field(default_factory=list, description="List of groups")
+    total: int = Field(..., description="Total number of groups")
+
+
+class GroupDeleteResponse(BaseModel):
+    """Response model for delete group endpoint."""
+
+    name: str = Field(..., description="Deleted group name")
+    deleted: bool = Field(True, description="Deletion status")
+
+
 class RegistryClient:
     """
     MCP Gateway Registry API client.
@@ -672,9 +703,9 @@ class RegistryClient:
         logger.debug(f"{method} {url}")
 
         # Determine content type based on endpoint
-        # Agent endpoints use JSON, server registration uses form data
-        if endpoint.startswith("/api/agents"):
-            # Send as JSON for all agent endpoints
+        # Agent and Management API endpoints use JSON, server registration uses form data
+        if endpoint.startswith("/api/agents") or endpoint.startswith("/api/management"):
+            # Send as JSON for agent and management endpoints
             response = requests.request(
                 method=method,
                 url=url,
@@ -800,9 +831,17 @@ class RegistryClient:
             endpoint="/api/servers"
         )
 
-        result = ServerListResponse(**response.json())
-        logger.info(f"Retrieved {len(result.servers)} services")
-        return result
+        response_data = response.json()
+        logger.debug(f"Raw API response: {json.dumps(response_data, indent=2, default=str)}")
+
+        try:
+            result = ServerListResponse(**response_data)
+            logger.info(f"Retrieved {len(result.servers)} services")
+            return result
+        except Exception as e:
+            logger.error(f"Failed to parse server list response: {e}")
+            logger.error(f"Raw response data: {json.dumps(response_data, indent=2, default=str)}")
+            raise
 
     def healthcheck(self) -> Dict[str, Any]:
         """
@@ -1464,13 +1503,28 @@ class RegistryClient:
 
         response = self._make_request(
             method="GET",
-            endpoint="/management/iam/users",
+            endpoint="/api/management/iam/users",
             params=params
         )
 
-        result = UserListResponse(**response.json())
-        logger.info(f"Retrieved {result.total} users")
-        return result
+        try:
+            response_data = response.json()
+            logger.debug(f"Raw API response: {json.dumps(response_data, indent=2, default=str)}")
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to decode JSON response: {e}")
+            logger.error(f"Raw response text: {response.text}")
+            logger.error(f"Response status code: {response.status_code}")
+            logger.error(f"Response headers: {dict(response.headers)}")
+            raise
+
+        try:
+            result = UserListResponse(**response_data)
+            logger.info(f"Retrieved {result.total} users")
+            return result
+        except Exception as e:
+            logger.error(f"Failed to parse user list response: {e}")
+            logger.error(f"Raw response data: {json.dumps(response_data, indent=2, default=str)}")
+            raise
 
 
     def create_m2m_account(
@@ -1504,7 +1558,7 @@ class RegistryClient:
 
         response = self._make_request(
             method="POST",
-            endpoint="/management/iam/users/m2m",
+            endpoint="/api/management/iam/users/m2m",
             data=data
         )
 
@@ -1553,7 +1607,7 @@ class RegistryClient:
 
         response = self._make_request(
             method="POST",
-            endpoint="/management/iam/users/human",
+            endpoint="/api/management/iam/users/human",
             data=data
         )
 
@@ -1582,7 +1636,7 @@ class RegistryClient:
 
         response = self._make_request(
             method="DELETE",
-            endpoint=f"/management/iam/users/{username}"
+            endpoint=f"/api/management/iam/users/{username}"
         )
 
         result = UserDeleteResponse(**response.json())
@@ -1590,15 +1644,15 @@ class RegistryClient:
         return result
 
 
-    def list_keycloak_iam_groups(self) -> List[Dict[str, Any]]:
+    def list_keycloak_iam_groups(self) -> GroupListResponse:
         """
-        List Keycloak IAM groups (raw Keycloak data).
+        List Keycloak IAM groups (admin only).
 
         This is different from list_groups() which returns groups with server associations.
         This method returns raw Keycloak group data without scopes.
 
         Returns:
-            List of Keycloak group dictionaries
+            GroupListResponse with list of groups
 
         Raises:
             requests.HTTPError: If not authorized (403) or request fails
@@ -1607,9 +1661,74 @@ class RegistryClient:
 
         response = self._make_request(
             method="GET",
-            endpoint="/management/iam/groups"
+            endpoint="/api/management/iam/groups"
         )
 
-        result = response.json()
-        logger.info(f"Retrieved {len(result)} Keycloak groups")
+        result = GroupListResponse(**response.json())
+        logger.info(f"Retrieved {result.total} Keycloak groups")
+        return result
+
+
+    def create_keycloak_group(
+        self,
+        name: str,
+        description: Optional[str] = None
+    ) -> KeycloakGroupSummary:
+        """
+        Create a new Keycloak group (admin only).
+
+        Args:
+            name: Group name
+            description: Optional group description
+
+        Returns:
+            KeycloakGroupSummary with created group details
+
+        Raises:
+            requests.HTTPError: If not authorized (403), already exists (400), or request fails
+        """
+        logger.info(f"Creating Keycloak group: {name}")
+
+        data = {
+            "name": name
+        }
+        if description:
+            data["description"] = description
+
+        response = self._make_request(
+            method="POST",
+            endpoint="/api/management/iam/groups",
+            data=data
+        )
+
+        result = KeycloakGroupSummary(**response.json())
+        logger.info(f"Group created successfully: {name}")
+        return result
+
+
+    def delete_keycloak_group(
+        self,
+        name: str
+    ) -> GroupDeleteResponse:
+        """
+        Delete a Keycloak group by name (admin only).
+
+        Args:
+            name: Group name to delete
+
+        Returns:
+            GroupDeleteResponse confirming deletion
+
+        Raises:
+            requests.HTTPError: If not authorized (403), not found (404), or request fails
+        """
+        logger.info(f"Deleting Keycloak group: {name}")
+
+        response = self._make_request(
+            method="DELETE",
+            endpoint=f"/api/management/iam/groups/{name}"
+        )
+
+        result = GroupDeleteResponse(**response.json())
+        logger.info(f"Group deleted successfully: {name}")
         return result

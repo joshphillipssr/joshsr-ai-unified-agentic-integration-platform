@@ -644,23 +644,43 @@ async def create_human_user_account(
 
 
 async def delete_keycloak_user(username: str) -> bool:
-    """Delete a Keycloak user by username."""
+    """
+    Delete a Keycloak user or M2M service account by username.
+
+    This function handles both:
+    - Human users: deleted via the users endpoint
+    - M2M service accounts: deleted via the clients endpoint (they are Keycloak clients)
+    """
     admin_token = await _get_keycloak_admin_token()
 
     async with httpx.AsyncClient(timeout=10.0) as client:
+        # Try to find as a regular user first
         user = await _get_user_by_username(client, admin_token, username)
-        if not user:
-            raise KeycloakAdminError(f"User '{username}' not found")
+        if user:
+            # It's a human user - delete via users endpoint
+            user_id = user.get("id")
+            delete_url = f"{KEYCLOAK_ADMIN_URL}/admin/realms/{KEYCLOAK_REALM}/users/{user_id}"
+            response = await client.delete(delete_url, headers=_auth_headers(admin_token, None))
+            if response.status_code != 204:
+                logger.error("Failed to delete user %s: %s", username, response.text)
+                raise KeycloakAdminError(f"Failed to delete user '{username}' (HTTP {response.status_code})")
+            logger.info("Deleted Keycloak user '%s'", username)
+            return True
 
-        user_id = user.get("id")
-        delete_url = f"{KEYCLOAK_ADMIN_URL}/admin/realms/{KEYCLOAK_REALM}/users/{user_id}"
-        response = await client.delete(delete_url, headers=_auth_headers(admin_token, None))
-        if response.status_code != 204:
-            logger.error("Failed to delete user %s: %s", username, response.text)
-            raise KeycloakAdminError(f"Failed to delete user '{username}' (HTTP {response.status_code})")
+        # Not found as user - try to find as a client (M2M service account)
+        client_uuid = await _find_client_uuid(client, admin_token, username)
+        if client_uuid:
+            # It's an M2M service account - delete via clients endpoint
+            delete_url = f"{KEYCLOAK_ADMIN_URL}/admin/realms/{KEYCLOAK_REALM}/clients/{client_uuid}"
+            response = await client.delete(delete_url, headers=_auth_headers(admin_token, None))
+            if response.status_code != 204:
+                logger.error("Failed to delete M2M client %s: %s", username, response.text)
+                raise KeycloakAdminError(f"Failed to delete M2M client '{username}' (HTTP {response.status_code})")
+            logger.info("Deleted Keycloak M2M service account (client) '%s'", username)
+            return True
 
-    logger.info("Deleted Keycloak user '%s'", username)
-    return True
+        # Not found as either user or client
+        raise KeycloakAdminError(f"User or M2M account '{username}' not found")
 
 
 async def list_keycloak_users(
@@ -668,18 +688,74 @@ async def list_keycloak_users(
     max_results: int = 500,
     include_groups: bool = True,
 ) -> List[Dict[str, Any]]:
-    """List users in the Keycloak realm."""
-    admin_token = await _get_keycloak_admin_token()
-    params: Dict[str, Any] = {"max": max_results}
-    if search:
-        params["search"] = search
+    """
+    List users in the Keycloak realm.
 
-    users_url = f"{KEYCLOAK_ADMIN_URL}/admin/realms/{KEYCLOAK_REALM}/users"
+    This includes both:
+    - Human users (regular Keycloak users)
+    - M2M service accounts (service account clients)
+
+    M2M accounts are returned with their clientId as the username and are marked
+    with serviceAccountsEnabled=True for identification.
+    """
+    admin_token = await _get_keycloak_admin_token()
+
     async with httpx.AsyncClient(timeout=10.0) as client:
+        # Fetch human users
+        params: Dict[str, Any] = {"max": max_results}
+        if search:
+            params["search"] = search
+        users_url = f"{KEYCLOAK_ADMIN_URL}/admin/realms/{KEYCLOAK_REALM}/users"
         response = await client.get(users_url, headers=_auth_headers(admin_token, None), params=params)
         response.raise_for_status()
         users = response.json()
 
+        # Fetch M2M service account clients
+        clients_url = f"{KEYCLOAK_ADMIN_URL}/admin/realms/{KEYCLOAK_REALM}/clients"
+        response = await client.get(clients_url, headers=_auth_headers(admin_token, None))
+        response.raise_for_status()
+        all_clients = response.json()
+
+        # Filter to only service account clients and convert to user-like format
+        service_accounts = []
+        for keycloak_client in all_clients:
+            if not keycloak_client.get("serviceAccountsEnabled"):
+                continue
+
+            client_id = keycloak_client.get("clientId", "")
+            # Apply search filter if specified
+            if search and search.lower() not in client_id.lower():
+                continue
+
+            # Get the service account user to retrieve groups
+            service_account_user_id = None
+            groups = []
+            if include_groups:
+                try:
+                    sa_url = f"{KEYCLOAK_ADMIN_URL}/admin/realms/{KEYCLOAK_REALM}/clients/{keycloak_client['id']}/service-account-user"
+                    sa_response = await client.get(sa_url, headers=_auth_headers(admin_token, None))
+                    if sa_response.status_code == 200:
+                        sa_user = sa_response.json()
+                        service_account_user_id = sa_user.get("id")
+                        if service_account_user_id:
+                            groups = await _get_user_groups(client, admin_token, service_account_user_id)
+                except Exception as e:
+                    logger.warning("Failed to get groups for M2M account %s: %s", client_id, e)
+
+            # Format M2M account as a user entry
+            service_account_entry = {
+                "id": keycloak_client.get("id", ""),
+                "username": client_id,
+                "enabled": keycloak_client.get("enabled", True),
+                "serviceAccountsEnabled": True,  # Mark as M2M account
+                "firstName": "M2M",
+                "lastName": "Service Account",
+                "email": f"{client_id}@service-account.local",
+                "groups": groups,
+            }
+            service_accounts.append(service_account_entry)
+
+        # Add groups to human users if requested
         if include_groups:
             for user in users:
                 user_id = user.get("id")
@@ -688,4 +764,8 @@ async def list_keycloak_users(
                     continue
                 user["groups"] = await _get_user_groups(client, admin_token, user_id)
 
-        return users
+        # Combine human users and M2M service accounts
+        all_users = users + service_accounts
+
+        # Apply max_results limit to combined list
+        return all_users[:max_results]

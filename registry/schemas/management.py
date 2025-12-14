@@ -52,3 +52,33 @@ class UserListResponse(BaseModel):
 
     users: List[KeycloakUserSummary] = Field(default_factory=list)
     total: int
+
+
+class GroupCreateRequest(BaseModel):
+    """Payload for creating a Keycloak group."""
+
+    name: str = Field(..., min_length=1)
+    description: Optional[str] = None
+
+
+class KeycloakGroupSummary(BaseModel):
+    """Keycloak group information."""
+
+    id: str
+    name: str
+    path: str
+    attributes: Optional[dict] = None
+
+
+class GroupListResponse(BaseModel):
+    """Response for listing Keycloak groups."""
+
+    groups: List[KeycloakGroupSummary] = Field(default_factory=list)
+    total: int
+
+
+class GroupDeleteResponse(BaseModel):
+    """Response when a Keycloak group is deleted."""
+
+    name: str
+    deleted: bool = True

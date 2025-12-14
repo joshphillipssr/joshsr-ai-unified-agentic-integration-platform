@@ -7,7 +7,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from ..auth.dependencies import nginx_proxied_auth
 from ..schemas.management import (
+    GroupCreateRequest,
+    GroupDeleteResponse,
+    GroupListResponse,
     HumanUserRequest,
+    KeycloakGroupSummary,
     KeycloakUserSummary,
     M2MAccountRequest,
     UserDeleteResponse,
@@ -16,7 +20,9 @@ from ..schemas.management import (
 from ..utils.keycloak_manager import (
     KeycloakAdminError,
     create_human_user_account,
+    create_keycloak_group,
     create_service_account_client,
+    delete_keycloak_group,
     delete_keycloak_user,
     list_keycloak_groups,
     list_keycloak_users,
@@ -136,17 +142,87 @@ async def management_delete_user(
     return UserDeleteResponse(username=username)
 
 
-@router.get("/iam/groups")
+@router.get("/iam/groups", response_model=GroupListResponse)
 async def management_list_keycloak_groups(
     user_context: Annotated[dict, Depends(nginx_proxied_auth)] = None,
 ):
-    """List raw Keycloak IAM groups (without scopes)."""
+    """List Keycloak IAM groups (admin only)."""
     _require_admin(user_context)
     try:
-        return await list_keycloak_groups()
+        raw_groups = await list_keycloak_groups()
+        summaries = [
+            KeycloakGroupSummary(
+                id=group.get("id", ""),
+                name=group.get("name", ""),
+                path=group.get("path", ""),
+                attributes=group.get("attributes"),
+            )
+            for group in raw_groups
+        ]
+        return GroupListResponse(groups=summaries, total=len(summaries))
     except Exception as exc:  # noqa: BLE001 - surface upstream failure
         logger.error("Failed to list Keycloak groups: %s", exc)
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Unable to list Keycloak groups",
+        ) from exc
+
+
+@router.post("/iam/groups", response_model=KeycloakGroupSummary)
+async def management_create_group(
+    payload: GroupCreateRequest,
+    user_context: Annotated[dict, Depends(nginx_proxied_auth)] = None,
+):
+    """Create a new Keycloak group (admin only)."""
+    _require_admin(user_context)
+    try:
+        result = await create_keycloak_group(
+            group_name=payload.name,
+            description=payload.description or ""
+        )
+        return KeycloakGroupSummary(
+            id=result.get("id", ""),
+            name=result.get("name", ""),
+            path=result.get("path", ""),
+            attributes=result.get("attributes"),
+        )
+    except KeycloakAdminError as exc:
+        raise _translate_keycloak_error(exc) from exc
+    except Exception as exc:
+        logger.error("Failed to create Keycloak group: %s", exc)
+        # Check if it's an "already exists" error
+        if "already exists" in str(exc).lower():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(exc),
+            ) from exc
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Failed to create group: {exc}",
+        ) from exc
+
+
+@router.delete("/iam/groups/{group_name}", response_model=GroupDeleteResponse)
+async def management_delete_group(
+    group_name: str,
+    user_context: Annotated[dict, Depends(nginx_proxied_auth)] = None,
+):
+    """Delete a Keycloak group by name (admin only)."""
+    _require_admin(user_context)
+    try:
+        await delete_keycloak_group(group_name)
+        return GroupDeleteResponse(name=group_name)
+    except KeycloakAdminError as exc:
+        raise _translate_keycloak_error(exc) from exc
+    except Exception as exc:
+        logger.error("Failed to delete Keycloak group: %s", exc)
+        # Check if it's a "not found" error
+        if "not found" in str(exc).lower():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Group '{group_name}' not found",
+            ) from exc
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Failed to delete group: {exc}",
         ) from exc
