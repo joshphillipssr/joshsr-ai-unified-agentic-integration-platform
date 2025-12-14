@@ -1,9 +1,11 @@
 """
 Version management for MCP Gateway Registry.
 
-Automatically determines version from git tags or falls back to default.
+Version can be set via BUILD_VERSION environment variable (for Docker builds)
+or determined from git tags at runtime (for local development).
 """
 
+import os
 import subprocess
 import logging
 from pathlib import Path
@@ -47,17 +49,17 @@ def _get_git_version() -> str:
             logger.info(f"Version from git: {version_str}")
             return version_str
         else:
-            logger.warning(f"Git describe failed: {result.stderr.strip()}")
+            logger.debug(f"Git describe failed: {result.stderr.strip()}")
             return None
 
     except FileNotFoundError:
-        logger.warning("Git command not found")
+        logger.debug("Git command not found")
         return None
     except subprocess.TimeoutExpired:
-        logger.warning("Git describe timed out")
+        logger.debug("Git describe timed out")
         return None
     except Exception as e:
-        logger.warning(f"Error getting git version: {e}")
+        logger.debug(f"Error getting git version: {e}")
         return None
 
 
@@ -65,16 +67,26 @@ def get_version() -> str:
     """
     Get application version.
 
-    Tries to get version from git tags, falls back to DEFAULT_VERSION.
+    Priority order:
+    1. BUILD_VERSION environment variable (set at Docker build time)
+    2. Git tags (for local development)
+    3. DEFAULT_VERSION fallback
 
     Returns:
         Version string (e.g., "1.0.7" or "1.0.0")
     """
-    git_version = _get_git_version()
+    # First check for build-time version (Docker builds)
+    build_version = os.getenv("BUILD_VERSION")
+    if build_version:
+        logger.info(f"Using build version: {build_version}")
+        return build_version
 
+    # Try git for local development
+    git_version = _get_git_version()
     if git_version:
         return git_version
 
+    # Fall back to default
     logger.info(f"Using default version: {DEFAULT_VERSION}")
     return DEFAULT_VERSION
 
