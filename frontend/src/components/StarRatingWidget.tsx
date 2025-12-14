@@ -74,7 +74,7 @@ const StarRatingWidget: React.FC<StarRatingWidgetProps> = ({
     try {
       const headers = authToken ? { Authorization: `Bearer ${authToken}` } : undefined;
       const response = await axios.get<RatingInfoResponse>(
-        `/api/${resourceType}${path}/rating`,
+        `/api/${resourceType}/rating?path=${encodeURIComponent(path)}`,
         headers ? { headers } : undefined
       );
 
@@ -104,7 +104,7 @@ const StarRatingWidget: React.FC<StarRatingWidgetProps> = ({
     try {
       const headers = { Authorization: `Bearer ${authToken}` };
       const response = await axios.post(
-        `/api/${resourceType}${path}/rate`,
+        `/api/${resourceType}/rate?path=${encodeURIComponent(path)}`,
         { rating: selectedRating },
         { headers }
       );
