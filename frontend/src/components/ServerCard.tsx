@@ -24,7 +24,7 @@ export interface Server {
   tags?: string[];
   last_checked_time?: string;
   usersCount?: number;
-  rating?: number;
+  num_stars?: number;  // Average rating from backend
   rating_details?: Array<{ user: string; rating: number }>;
   status?: 'healthy' | 'healthy-auth-expired' | 'unhealthy' | 'unknown';
   num_tools?: number;
@@ -281,14 +281,14 @@ const ServerCard: React.FC<ServerCardProps> = ({ server, onToggle, onEdit, canMo
             <StarRatingWidget
               resourceType="servers"
               path={server.path}
-              initialRating={server.rating || 0}
+              initialRating={server.num_stars || 0}
               initialCount={server.rating_details?.length || 0}
               authToken={authToken}
               onShowToast={onShowToast}
               onRatingUpdate={(newRating) => {
                 // Update local server rating when user submits rating
                 if (onServerUpdate) {
-                  onServerUpdate(server.path, { rating: newRating });
+                  onServerUpdate(server.path, { num_stars: newRating });
                 }
               }}
             />
