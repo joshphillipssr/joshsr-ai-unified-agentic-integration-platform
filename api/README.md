@@ -223,12 +223,18 @@ uv run python api/registry_management.py --token-file <token> \
 
 ## API Specification
 
-You can access the live OpenAPI specification directly from your running instance:
+**Live OpenAPI Specification** (Always Up-to-Date):
+
+Access the OpenAPI specification directly from your running registry instance:
 
 - **Localhost**: `http://localhost/openapi.json`
-- **Production**: `https://registry.<region>.example.com/openapi.json` (replace with your actual domain)
+- **Production**: `https://registry.us-east-1.example.com/openapi.json` (replace with your actual registry endpoint)
 
-The OpenAPI spec is auto-generated and always reflects the current API implementation.
+The live OpenAPI spec is auto-generated and always reflects the current API implementation.
+
+**Reference OpenAPI Specification** (May Not Be Latest):
+
+A reference copy is available at [openapi.json](openapi.json) for offline reference. However, this may not reflect the latest changes. Always use the live endpoint from your running registry for the most current API specification.
 
 ## Authentication
 
