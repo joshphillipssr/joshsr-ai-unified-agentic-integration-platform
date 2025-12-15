@@ -4,11 +4,9 @@ This collection of charts deploys everything needed to install the MCP Gateway R
 
 ## Prerequisites
 
-### Kubernetes Cluster
+### Amazon EKS Cluster
 
-**Option 1: Amazon EKS (Recommended for AWS deployments)**
-
-For production EKS deployments, we recommend using the [AWS AI/ML on Amazon EKS](https://github.com/awslabs/ai-on-eks) blueprints:
+For production deployments, we recommend using the [AWS AI/ML on Amazon EKS](https://github.com/awslabs/ai-on-eks) blueprints to provision a production-ready EKS cluster:
 
 ```bash
 # Clone AI on EKS repository
@@ -20,20 +18,22 @@ cd ai-on-eks
 # https://github.com/awslabs/ai-on-eks/tree/main/blueprints
 ```
 
-**Option 2: Other Kubernetes Platforms**
-- Google GKE
-- Azure AKS
-- Self-managed Kubernetes clusters
-- Local development (minikube, kind, k3s)
+The ai-on-eks blueprints provide:
+- GPU support for AI/ML workloads
+- Karpenter for efficient auto-scaling
+- EKS-optimized configurations
+- Security best practices
+- Observability with Prometheus/Grafana
+- Proven, battle-tested infrastructure
 
 ### Additional Requirements
 
 - `helm` CLI installed (v3.0+)
-- `kubectl` configured to access your cluster
-- Ingress Controller (AWS ALB Controller for EKS, or NGINX/Traefik for other platforms)
+- `kubectl` configured to access your EKS cluster
+- AWS Load Balancer Controller for EKS
 - ExternalDNS (optional, for automatic DNS management)
 - Domain name with DNS access
-- TLS certificates (Let's Encrypt, AWS ACM, or self-signed)
+- TLS certificates (AWS Certificate Manager or Let's Encrypt)
 
 ## Setup
 
