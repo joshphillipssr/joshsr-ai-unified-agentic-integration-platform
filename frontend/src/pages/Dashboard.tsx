@@ -354,10 +354,10 @@ const Dashboard: React.FC<DashboardProps> = ({ activeFilter = 'all' }) => {
     return filtered;
   }, [internalAgents, activeFilter, searchTerm]);
 
-  // Generate JWT token for agent operations when user logs in or agents change
+  // Generate JWT token for agent operations once when user logs in and agentsFromStats are available
   useEffect(() => {
     const generateAgentToken = async () => {
-      if (!user || agents.length === 0) return;
+      if (!user || agentsFromStats.length === 0 || agentApiToken) return;
 
       try {
         setAgentsLoading(true);
@@ -391,7 +391,7 @@ const Dashboard: React.FC<DashboardProps> = ({ activeFilter = 'all' }) => {
     };
 
     generateAgentToken();
-  }, [user, agents, runInitialAgentHealthChecks]);
+  }, [user, agentsFromStats.length, agentApiToken]); // Only depend on length, not the full array
 
   // Debug logging for filtering
   console.log('Dashboard filtering debug:');
