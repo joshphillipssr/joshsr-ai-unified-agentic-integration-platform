@@ -47,9 +47,18 @@ INDEX_BASE_NAMES = [
     "mcp-servers",
     "mcp-agents",
     "mcp-scopes",
-    "mcp-embeddings",
     "mcp-security-scans",
     "mcp-federation-config",
+]
+
+# Common embedding dimensions for different models
+# This creates separate indexes for each dimension to support multiple embedding models
+EMBEDDING_DIMENSIONS = [
+    384,   # sentence-transformers/all-MiniLM-L6-v2, Cohere embed-english-light-v3.0
+    768,   # sentence-transformers/all-mpnet-base-v2, OpenAI ada-001
+    1024,  # Amazon Titan Embed Text v2, Cohere embed-english-v3.0
+    1536,  # OpenAI text-embedding-ada-002, text-embedding-3-small
+    3072,  # OpenAI text-embedding-3-large
 ]
 
 
@@ -180,16 +189,10 @@ def main():
         logger.info(f"Proceeding with index creation anyway...")
         logger.info(f"Using namespace: {args.namespace}")
 
-    # Create indices with namespace suffix
+    # Create non-embedding indices with namespace suffix
     for base_name in INDEX_BASE_NAMES:
         index_name = f"{base_name}-{args.namespace}"
-
-        # For OpenSearch Serverless, use serverless-specific schema for embeddings
-        # (Serverless uses VECTORSEARCH collection which supports k-NN differently)
-        if args.auth_type == "aws_iam" and base_name == "mcp-embeddings":
-            schema_file = SCHEMAS_DIR / f"{base_name}-serverless.json"
-        else:
-            schema_file = SCHEMAS_DIR / f"{base_name}.json"
+        schema_file = SCHEMAS_DIR / f"{base_name}.json"
 
         if not schema_file.exists():
             logger.warning(f"Schema file not found: {schema_file}, skipping {index_name}")
@@ -212,6 +215,54 @@ def main():
         except Exception as e:
             logger.error(f"Failed to create index {index_name}: {e}")
             continue
+
+    # Create dimension-specific embedding indices
+    logger.info(f"Creating embedding indices for dimensions: {EMBEDDING_DIMENSIONS}")
+
+    # Determine schema file based on auth type
+    if args.auth_type == "aws_iam":
+        embedding_schema_file = SCHEMAS_DIR / "mcp-embeddings-serverless.json"
+    else:
+        embedding_schema_file = SCHEMAS_DIR / "mcp-embeddings.json"
+
+    if not embedding_schema_file.exists():
+        logger.warning(f"Embedding schema file not found: {embedding_schema_file}")
+    else:
+        with open(embedding_schema_file) as f:
+            base_embedding_schema = json.load(f)
+
+        for dimension in EMBEDDING_DIMENSIONS:
+            # Create dimension-specific index name: mcp-embeddings-{dimension}-{namespace}
+            index_name = f"mcp-embeddings-{dimension}-{args.namespace}"
+
+            # Deep copy schema and update dimension
+            embedding_schema = json.loads(json.dumps(base_embedding_schema))
+
+            # Update dimension in k-NN settings
+            if "settings" in embedding_schema and "index" in embedding_schema["settings"]:
+                if "knn" in embedding_schema["settings"]["index"]:
+                    embedding_schema["settings"]["index"]["knn"] = True
+
+            # Update dimension in mapping
+            if "mappings" in embedding_schema and "properties" in embedding_schema["mappings"]:
+                if "embedding" in embedding_schema["mappings"]["properties"]:
+                    embedding_schema["mappings"]["properties"]["embedding"]["dimension"] = dimension
+                    logger.debug(f"Set embedding dimension to {dimension} for index {index_name}")
+
+            try:
+                if client.indices.exists(index=index_name):
+                    if args.recreate:
+                        logger.info(f"Deleting existing embedding index: {index_name}")
+                        client.indices.delete(index=index_name)
+                    else:
+                        logger.info(f"Embedding index {index_name} already exists, skipping")
+                        continue
+
+                client.indices.create(index=index_name, body=embedding_schema)
+                logger.info(f"Created embedding index: {index_name} (dimension={dimension})")
+            except Exception as e:
+                logger.error(f"Failed to create embedding index {index_name}: {e}")
+                continue
 
     # Create search pipeline (shared across namespaces)
     # Note: OpenSearch Serverless may not support custom search pipelines

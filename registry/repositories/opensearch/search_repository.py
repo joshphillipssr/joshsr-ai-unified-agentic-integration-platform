@@ -18,7 +18,8 @@ class OpenSearchSearchRepository(SearchRepositoryBase):
 
     def __init__(self):
         self._client: Optional[AsyncOpenSearch] = None
-        self._index_name = get_index_name(settings.opensearch_index_embeddings)
+        # Use dimension-aware index name (e.g., mcp-embeddings-1536-default)
+        self._index_name = embedding_config.index_name
         self._embedding_model = None
 
     async def _get_client(self) -> AsyncOpenSearch:

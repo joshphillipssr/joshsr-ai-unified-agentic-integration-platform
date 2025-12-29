@@ -86,7 +86,29 @@ CLUSTER_NAME="mcp-gateway-ecs-cluster"
 TASK_FAMILY="mcp-gateway-opensearch-cli"
 CONTAINER_NAME="opensearch-cli"
 
-# Get OpenSearch host from environment or default
+# Get script directory for finding terraform outputs
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+TERRAFORM_DIR="$(dirname "$SCRIPT_DIR")"
+TERRAFORM_OUTPUTS_FILE="$TERRAFORM_DIR/terraform-outputs.json"
+
+# Get OpenSearch host - priority order:
+# 1. OPENSEARCH_HOST environment variable if explicitly set
+# 2. terraform-outputs.json file
+# 3. Default fallback
+if [ -n "$OPENSEARCH_HOST" ]; then
+    # Use explicitly set environment variable
+    :
+elif [ -f "$TERRAFORM_OUTPUTS_FILE" ]; then
+    # Extract from terraform outputs and remove https:// prefix
+    OPENSEARCH_ENDPOINT=$(jq -r '.opensearch_serverless_collection_endpoint.value // empty' "$TERRAFORM_OUTPUTS_FILE" 2>/dev/null)
+    if [ -n "$OPENSEARCH_ENDPOINT" ]; then
+        # Remove https:// prefix if present
+        OPENSEARCH_HOST="${OPENSEARCH_ENDPOINT#https://}"
+        echo -e "${BLUE}Using OpenSearch endpoint from Terraform outputs${NC}"
+    fi
+fi
+
+# Final fallback to default if still not set
 OPENSEARCH_HOST="${OPENSEARCH_HOST:-qmnoselvyumijjiom050.us-east-1.aoss.amazonaws.com}"
 
 # Get VPC configuration from registry service
