@@ -196,7 +196,7 @@ async def read_root(
             # Get real health status from health service
             from ..health.service import health_service
 
-            health_data = health_service._get_service_health_data(path)
+            health_data = health_service._get_service_health_data(path, server_info)
 
             # Normalize health status to enum values only (strip error messages)
             raw_status = health_data["status"]
@@ -302,7 +302,7 @@ async def get_servers_json(
             # Get real health status from health service
             from ..health.service import health_service
 
-            health_data = health_service._get_service_health_data(path)
+            health_data = health_service._get_service_health_data(path, server_info)
 
             # Normalize health status to enum values only (strip error messages)
             raw_status = health_data["status"]
@@ -3900,7 +3900,7 @@ async def get_servers_json(
         if not search_query or search_query in searchable_text:
             # Get real health status from health service
             from ..health.service import health_service
-            health_data = health_service._get_service_health_data(path)
+            health_data = health_service._get_service_health_data(path, server_info)
             
             service_data.append(
                 {

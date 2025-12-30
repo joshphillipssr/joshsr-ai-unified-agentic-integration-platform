@@ -1020,18 +1020,16 @@ class HealthMonitoringService:
 
         return current_status, last_checked_time
 
-    def _get_service_health_data(self, service_path: str) -> Dict:
+    def _get_service_health_data(self, service_path: str, server_info: Dict = None) -> Dict:
         """Get health data for a specific service - legacy method, use _get_service_health_data_fast for better performance."""
-        from ..services.server_service import server_service
-        server_info = server_service.get_server_info(service_path)
         return self._get_service_health_data_fast(service_path, server_info or {})
         
     def _get_service_health_data_fast(self, service_path: str, server_info: Dict) -> Dict:
         """Get health data for a specific service - optimized version."""
         from ..services.server_service import server_service
-        
-        # Quick enabled check using cached service_state
-        is_enabled = server_service.service_state.get(service_path, False)
+
+        # Quick enabled check from server_info
+        is_enabled = server_info.get("is_enabled", False)
         
         if not is_enabled:
             status = "disabled"
