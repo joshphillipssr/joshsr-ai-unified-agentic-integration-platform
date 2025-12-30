@@ -1,4 +1,8 @@
 #!/bin/bash
+# Deploy registry service to ECS
+# Usage: ./scripts/deploy-registry.sh [NO_CACHE=true]
+# Example: ./scripts/deploy-registry.sh
+# Example: NO_CACHE=true ./scripts/deploy-registry.sh
 
 # Exit on error
 set -e
@@ -20,8 +24,14 @@ echo ""
 # Step 1: Build and push Docker image
 echo "Step 1/3: Building and pushing Docker image..."
 echo "----------------------------------------"
-cd "$REPO_ROOT"
-make build-push IMAGE=registry
+if [[ "${NO_CACHE:-}" == "true" ]]; then
+    echo "Building without cache (NO_CACHE=true)"
+    cd "$REPO_ROOT"
+    NO_CACHE=true make build-push IMAGE=registry
+else
+    cd "$REPO_ROOT"
+    make build-push IMAGE=registry
+fi
 
 if [ $? -ne 0 ]; then
     echo "Error: Docker build and push failed"

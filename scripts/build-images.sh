@@ -1,8 +1,10 @@
 #!/bin/bash
 # Build and push Docker images from build-config.yaml to AWS ECR
-# Usage: ./scripts/build-images.sh [build|push|build-push] [IMAGE=name]
+# Usage: ./scripts/build-images.sh [build|push|build-push] [IMAGE=name] [NO_CACHE=true]
 # Example: ./scripts/build-images.sh build IMAGE=registry
 # Example: ./scripts/build-images.sh build-push
+# Example: NO_CACHE=true ./scripts/build-images.sh build IMAGE=registry
+# Example: NO_CACHE=true make build-push IMAGE=registry
 
 set -e
 
@@ -276,11 +278,19 @@ build_image() {
     fi
     log_info "BUILD_VERSION=$BUILD_VERSION"
 
+    # Construct cache flags
+    local cache_flags=""
+    if [[ "${NO_CACHE:-}" == "true" ]]; then
+        cache_flags="--no-cache"
+        log_warning "Building without cache (NO_CACHE=true)"
+    fi
+
     # Build the Docker image using buildx (faster, better caching, future-proof)
     docker buildx build \
         --load \
         -f "$REPO_ROOT/$dockerfile" \
         -t "$repo_name:latest" \
+        $cache_flags \
         $build_arg_flags \
         "$REPO_ROOT/$context" || {
         log_error "Failed to build $image_name"
