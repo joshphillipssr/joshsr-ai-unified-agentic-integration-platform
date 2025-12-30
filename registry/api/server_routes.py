@@ -3958,7 +3958,7 @@ async def get_servers_json(
                     "path": path,
                     "description": server_info.get("description", ""),
                     "proxy_pass_url": server_info.get("proxy_pass_url", ""),
-                    "is_enabled": server_service.is_service_enabled(path),
+                    "is_enabled": await server_service.is_service_enabled(path),
                     "tags": server_info.get("tags", []),
                     "num_tools": server_info.get("num_tools", 0),
                     "num_stars": server_info.get("num_stars", 0),

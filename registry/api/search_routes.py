@@ -96,7 +96,7 @@ def _user_can_access_server(path: str, server_name: str, user_context: dict) -> 
         return False
 
     try:
-        if server_service.user_can_access_server_path(path, accessible_servers):
+        if await server_service.user_can_access_server_path(path, accessible_servers):
             return True
     except Exception:
         # Fall through to string comparisons if server lookup failed

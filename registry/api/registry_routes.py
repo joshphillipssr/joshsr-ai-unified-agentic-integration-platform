@@ -91,7 +91,7 @@ async def list_servers(
         server_info_with_status = server_info.copy()
         server_info_with_status["health_status"] = health_data["status"]
         server_info_with_status["last_checked_iso"] = health_data["last_checked_iso"]
-        server_info_with_status["is_enabled"] = server_service.is_service_enabled(path)
+        server_info_with_status["is_enabled"] = await server_service.is_service_enabled(path)
 
         filtered_servers.append(server_info_with_status)
 
@@ -188,7 +188,7 @@ async def list_server_versions(
     server_info_with_status = server_info.copy()
     server_info_with_status["health_status"] = health_data["status"]
     server_info_with_status["last_checked_iso"] = health_data["last_checked_iso"]
-    server_info_with_status["is_enabled"] = server_service.is_service_enabled(path)
+    server_info_with_status["is_enabled"] = await server_service.is_service_enabled(path)
 
     # Since we only have one version, return a list with one item
     server_list = transform_to_server_list([server_info_with_status])
@@ -291,7 +291,7 @@ async def get_server_version(
     server_info_with_status = server_info.copy()
     server_info_with_status["health_status"] = health_data["status"]
     server_info_with_status["last_checked_iso"] = health_data["last_checked_iso"]
-    server_info_with_status["is_enabled"] = server_service.is_service_enabled(path)
+    server_info_with_status["is_enabled"] = await server_service.is_service_enabled(path)
 
     # Transform to Anthropic format
     server_response = transform_to_server_response(
