@@ -296,7 +296,7 @@ class OpenSearchAgentRepository(AgentRepositoryBase):
             # Get the document ID (auto-generated for AOSS, deterministic for regular OpenSearch)
             doc_id = search_response['hits']['hits'][0]['_id']
 
-            # Update using the document ID
+            # Update using the document ID - use update() for both to ensure consistency
             if self._is_aoss():
                 # AOSS doesn't support refresh=true
                 await client.update(
@@ -305,10 +305,10 @@ class OpenSearchAgentRepository(AgentRepositoryBase):
                     body={"doc": agent_dict}
                 )
             else:
-                await client.index(
+                await client.update(
                     index=self._index_name,
                     id=doc_id,
-                    body=agent_dict,
+                    body={"doc": agent_dict},
                     refresh=True
                 )
 
