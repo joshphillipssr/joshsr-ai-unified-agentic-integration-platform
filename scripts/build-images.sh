@@ -112,6 +112,8 @@ if command -v git &> /dev/null && [ -d "${REPO_ROOT}/.git" ]; then
     else
         # Not on a tag - include branch name and commit info
         GIT_BRANCH=$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+        # Sanitize branch name for Docker tag (replace / with -)
+        GIT_BRANCH="${GIT_BRANCH//\//-}"
         GIT_DESCRIBE=$(git -C "$REPO_ROOT" describe --tags --always 2>/dev/null || echo "dev")
 
         # Format: version-branch or describe-branch

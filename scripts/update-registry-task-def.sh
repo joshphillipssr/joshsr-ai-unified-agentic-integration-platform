@@ -31,6 +31,8 @@ else
         echo "Using release tag: $IMAGE_TAG"
     else
         GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+        # Sanitize branch name for Docker tag (replace / with -)
+        GIT_BRANCH="${GIT_BRANCH//\//-}"
         GIT_DESCRIBE=$(git describe --tags --always 2>/dev/null || echo "dev")
 
         if [[ "$GIT_DESCRIBE" =~ ^[0-9] ]]; then
