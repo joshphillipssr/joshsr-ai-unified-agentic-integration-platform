@@ -129,27 +129,90 @@ class OpenSearchAgentRepository(AgentRepositoryBase):
             self._state = {"enabled": [], "disabled": []}
 
     async def get(self, path: str) -> Optional[AgentCard]:
-        """Get agent by path."""
-        agent = self._agents.get(path)
-        if agent:
-            return agent
+        """Get agent by path - queries OpenSearch directly."""
+        client = await self._get_client()
 
-        if path.endswith('/'):
-            alternate_path = path.rstrip('/')
-        else:
-            alternate_path = path + '/'
+        try:
+            # Query OpenSearch for this specific path
+            search_response = await client.search(
+                index=self._index_name,
+                body={"query": {"term": {"path": path}}}
+            )
 
-        return self._agents.get(alternate_path)
+            if search_response['hits']['total']['value'] > 0:
+                agent_data = search_response['hits']['hits'][0]['_source']
+                try:
+                    return AgentCard(**agent_data)
+                except Exception as e:
+                    logger.error(f"Failed to parse agent at '{path}': {e}")
+                    return None
+
+            # Try alternate path format (with/without trailing slash)
+            if path.endswith('/'):
+                alternate_path = path.rstrip('/')
+            else:
+                alternate_path = path + '/'
+
+            search_response = await client.search(
+                index=self._index_name,
+                body={"query": {"term": {"path": alternate_path}}}
+            )
+
+            if search_response['hits']['total']['value'] > 0:
+                agent_data = search_response['hits']['hits'][0]['_source']
+                try:
+                    return AgentCard(**agent_data)
+                except Exception as e:
+                    logger.error(f"Failed to parse agent at '{alternate_path}': {e}")
+                    return None
+
+            return None
+
+        except NotFoundError:
+            logger.debug(f"Index {self._index_name} not found when getting agent '{path}'")
+            return None
+        except Exception as e:
+            logger.error(f"Error getting agent '{path}' from OpenSearch: {e}", exc_info=True)
+            return None
 
     async def list_all(self) -> List[AgentCard]:
-        """List all agents."""
-        return list(self._agents.values())
+        """List all agents - queries OpenSearch directly."""
+        client = await self._get_client()
+
+        try:
+            response = await client.search(
+                index=self._index_name,
+                body={
+                    "query": {"match_all": {}},
+                    "size": 10000
+                }
+            )
+
+            agents = []
+            for hit in response["hits"]["hits"]:
+                agent_data = hit["_source"]
+                try:
+                    agent_card = AgentCard(**agent_data)
+                    agents.append(agent_card)
+                except Exception as e:
+                    logger.error(f"Failed to parse agent {agent_data.get('path', 'unknown')}: {e}")
+
+            return agents
+
+        except NotFoundError:
+            logger.debug(f"Index {self._index_name} not found when listing agents")
+            return []
+        except Exception as e:
+            logger.error(f"Error listing agents from OpenSearch: {e}", exc_info=True)
+            return []
 
     async def create(self, agent: AgentCard) -> AgentCard:
         """Create a new agent."""
         path = agent.path
 
-        if path in self._agents:
+        # Check if agent already exists by querying OpenSearch
+        existing = await self.get(path)
+        if existing:
             logger.error(f"Agent path '{path}' already exists")
             raise ValueError(f"Agent path '{path}' already exists")
 
@@ -180,9 +243,6 @@ class OpenSearchAgentRepository(AgentRepositoryBase):
                     logger.error(f"Document for '{path}' not available after retries")
                     raise ValueError(f"Failed to verify agent creation in OpenSearch")
 
-                # Reload cache to sync with OpenSearch after write
-                await self.load_all()
-
             else:
                 # Regular OpenSearch - use custom ID for backwards compatibility
                 await client.index(
@@ -191,10 +251,6 @@ class OpenSearchAgentRepository(AgentRepositoryBase):
                     body=agent_dict,
                     refresh=True
                 )
-
-                # Update local cache immediately for regular OpenSearch
-                self._agents[path] = agent
-                self._state["disabled"].append(path)
 
             logger.info(f"Created agent '{agent.name}' at '{path}'")
             return agent
@@ -205,14 +261,15 @@ class OpenSearchAgentRepository(AgentRepositoryBase):
 
     async def update(self, path: str, updates: Dict[str, Any]) -> AgentCard:
         """Update an existing agent."""
-        if path not in self._agents:
+        # Query for existing agent
+        existing_agent = await self.get(path)
+        if not existing_agent:
             logger.error(f"Cannot update agent at '{path}': not found")
             raise ValueError(f"Agent not found at path: {path}")
 
         client = await self._get_client()
 
         # Merge updates with existing agent
-        existing_agent = self._agents[path]
         agent_dict = existing_agent.model_dump()
         agent_dict.update(updates)
         agent_dict["path"] = path
@@ -227,40 +284,33 @@ class OpenSearchAgentRepository(AgentRepositoryBase):
         agent_dict = updated_agent.model_dump(mode="json")
 
         try:
+            # Find existing document by path field
+            search_response = await client.search(
+                index=self._index_name,
+                body={"query": {"term": {"path": path}}}
+            )
+
+            if search_response['hits']['total']['value'] == 0:
+                raise ValueError(f"Agent at '{path}' not found in OpenSearch")
+
+            # Get the document ID (auto-generated for AOSS, deterministic for regular OpenSearch)
+            doc_id = search_response['hits']['hits'][0]['_id']
+
+            # Update using the document ID
             if self._is_aoss():
-                # Find existing document by path field for AOSS
-                search_response = await client.search(
-                    index=self._index_name,
-                    body={"query": {"term": {"path": path}}}
-                )
-
-                if search_response['hits']['total']['value'] == 0:
-                    raise ValueError(f"Agent at '{path}' not found in OpenSearch")
-
-                # Get the auto-generated document ID
-                doc_id = search_response['hits']['hits'][0]['_id']
-
-                # Update using the document ID (AOSS doesn't support refresh=true)
+                # AOSS doesn't support refresh=true
                 await client.update(
                     index=self._index_name,
                     id=doc_id,
                     body={"doc": agent_dict}
                 )
-
-                # Reload cache to sync with OpenSearch after write
-                await self.load_all()
             else:
-                # Regular OpenSearch - use deterministic ID
-                doc_id = self._path_to_doc_id(path)
                 await client.index(
                     index=self._index_name,
                     id=doc_id,
                     body=agent_dict,
                     refresh=True
                 )
-
-                # Update local cache immediately for regular OpenSearch
-                self._agents[path] = updated_agent
 
             logger.info(f"Updated agent '{updated_agent.name}' ({path})")
             return updated_agent
@@ -271,57 +321,37 @@ class OpenSearchAgentRepository(AgentRepositoryBase):
 
     async def delete(self, path: str) -> bool:
         """Delete an agent."""
-        if path not in self._agents:
-            logger.error(f"Cannot delete agent at '{path}': not found")
-            return False
-
         client = await self._get_client()
 
         try:
-            if self._is_aoss():
-                # Find existing document by path field for AOSS
-                search_response = await client.search(
-                    index=self._index_name,
-                    body={"query": {"term": {"path": path}}}
-                )
+            # Find existing document by path field
+            search_response = await client.search(
+                index=self._index_name,
+                body={"query": {"term": {"path": path}}}
+            )
 
-                if search_response['hits']['total']['value'] == 0:
-                    logger.error(f"Agent at '{path}' not found in OpenSearch")
-                    return False
+            if search_response['hits']['total']['value'] == 0:
+                logger.error(f"Agent at '{path}' not found in OpenSearch")
+                return False
 
-                # Get the auto-generated document ID
-                doc_id = search_response['hits']['hits'][0]['_id']
-            else:
-                # Regular OpenSearch - use deterministic ID
-                doc_id = self._path_to_doc_id(path)
+            # Get the document ID and agent name
+            doc_id = search_response['hits']['hits'][0]['_id']
+            agent_data = search_response['hits']['hits'][0]['_source']
+            agent_name = agent_data.get('name', 'Unknown')
 
             # Delete using the document ID
-            agent_name = self._agents[path].name
-
             if self._is_aoss():
                 # AOSS doesn't support refresh=true
                 await client.delete(
                     index=self._index_name,
                     id=doc_id
                 )
-
-                # Reload cache to sync with OpenSearch after write
-                await self.load_all()
             else:
                 await client.delete(
                     index=self._index_name,
                     id=doc_id,
                     refresh=True
                 )
-
-                # Update local cache immediately for regular OpenSearch
-                del self._agents[path]
-
-                # Remove from state
-                if path in self._state["enabled"]:
-                    self._state["enabled"].remove(path)
-                if path in self._state["disabled"]:
-                    self._state["disabled"].remove(path)
 
             logger.info(f"Deleted agent '{agent_name}' from '{path}'")
             return True
@@ -331,81 +361,81 @@ class OpenSearchAgentRepository(AgentRepositoryBase):
             return False
 
     async def get_state(self, path: str = None) -> Dict[str, List[str]] | bool:
-        """Get agent state - all state if no path, individual state if path provided."""
+        """Get agent state - queries OpenSearch directly if path provided, returns all state otherwise."""
         if path is None:
-            # Return all state (for service initialization)
-            return self._state
+            # Return all state - query all agents from OpenSearch
+            client = await self._get_client()
 
-        # Return individual agent state
-        if path in self._state["enabled"]:
-            return True
+            try:
+                response = await client.search(
+                    index=self._index_name,
+                    body={
+                        "query": {"match_all": {}},
+                        "size": 10000
+                    }
+                )
 
-        # Try alternate form
-        if path.endswith('/'):
-            alternate_path = path.rstrip('/')
-        else:
-            alternate_path = path + '/'
+                state = {"enabled": [], "disabled": []}
+                for hit in response["hits"]["hits"]:
+                    agent_data = hit["_source"]
+                    agent_path = agent_data.get("path")
+                    if agent_path:
+                        if agent_data.get("is_enabled", False):
+                            state["enabled"].append(agent_path)
+                        else:
+                            state["disabled"].append(agent_path)
 
-        return alternate_path in self._state["enabled"]
+                return state
+
+            except Exception as e:
+                logger.error(f"Error getting all agent state from OpenSearch: {e}", exc_info=True)
+                return {"enabled": [], "disabled": []}
+
+        # Return individual agent state by querying OpenSearch
+        agent = await self.get(path)
+        if agent:
+            return getattr(agent, "is_enabled", False)
+
+        return False
 
     async def set_state(self, path: str, enabled: bool) -> bool:
         """Set agent enabled/disabled state."""
-        if path not in self._agents:
-            logger.error(f"Cannot toggle agent at '{path}': not found")
-            return False
-
         client = await self._get_client()
 
         try:
-            if self._is_aoss():
-                # Find existing document by path field for AOSS
-                search_response = await client.search(
-                    index=self._index_name,
-                    body={"query": {"term": {"path": path}}}
-                )
+            # Find existing document by path field
+            search_response = await client.search(
+                index=self._index_name,
+                body={"query": {"term": {"path": path}}}
+            )
 
-                if search_response['hits']['total']['value'] == 0:
-                    logger.error(f"Agent at '{path}' not found in OpenSearch")
-                    return False
+            if search_response['hits']['total']['value'] == 0:
+                logger.error(f"Agent at '{path}' not found in OpenSearch")
+                return False
 
-                # Get the auto-generated document ID
-                doc_id = search_response['hits']['hits'][0]['_id']
-            else:
-                # Regular OpenSearch - use deterministic ID
-                doc_id = self._path_to_doc_id(path)
+            # Get the document ID and agent data
+            doc_id = search_response['hits']['hits'][0]['_id']
+            agent_data = search_response['hits']['hits'][0]['_source']
+            agent_name = agent_data.get('name', path)
 
-            # Update using the document ID
+            # Update state in OpenSearch
+            update_body = {"doc": {"is_enabled": enabled, "updated_at": datetime.utcnow().isoformat()}}
+
             if self._is_aoss():
                 # AOSS doesn't support refresh=true
                 await client.update(
                     index=self._index_name,
                     id=doc_id,
-                    body={"doc": {"is_enabled": enabled, "updated_at": datetime.utcnow().isoformat()}}
+                    body=update_body
                 )
-
-                # Reload cache to sync with OpenSearch after write
-                await self.load_all()
             else:
                 await client.update(
                     index=self._index_name,
                     id=doc_id,
-                    body={"doc": {"is_enabled": enabled, "updated_at": datetime.utcnow().isoformat()}},
+                    body=update_body,
                     refresh=True
                 )
 
-                # Update state lists immediately for regular OpenSearch
-                if enabled:
-                    if path in self._state["disabled"]:
-                        self._state["disabled"].remove(path)
-                    if path not in self._state["enabled"]:
-                        self._state["enabled"].append(path)
-                else:
-                    if path in self._state["enabled"]:
-                        self._state["enabled"].remove(path)
-                    if path not in self._state["disabled"]:
-                        self._state["disabled"].append(path)
-
-            agent_name = self._agents[path].name
             logger.info(f"Toggled '{agent_name}' ({path}) to {enabled}")
             return True
 

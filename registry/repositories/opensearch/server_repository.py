@@ -111,27 +111,77 @@ class OpenSearchServerRepository(ServerRepositoryBase):
             self._servers = {}
 
     async def get(self, path: str) -> Optional[Dict[str, Any]]:
-        """Get server by path."""
-        server_info = self._servers.get(path)
-        if server_info:
-            return server_info
+        """Get server by path - queries OpenSearch directly."""
+        client = await self._get_client()
 
-        if path.endswith('/'):
-            alternate_path = path.rstrip('/')
-        else:
-            alternate_path = path + '/'
+        try:
+            # Query OpenSearch for this specific path
+            search_response = await client.search(
+                index=self._index_name,
+                body={"query": {"term": {"path": path}}}
+            )
 
-        return self._servers.get(alternate_path)
+            if search_response['hits']['total']['value'] > 0:
+                return search_response['hits']['hits'][0]['_source']
+
+            # Try alternate path format (with/without trailing slash)
+            if path.endswith('/'):
+                alternate_path = path.rstrip('/')
+            else:
+                alternate_path = path + '/'
+
+            search_response = await client.search(
+                index=self._index_name,
+                body={"query": {"term": {"path": alternate_path}}}
+            )
+
+            if search_response['hits']['total']['value'] > 0:
+                return search_response['hits']['hits'][0]['_source']
+
+            return None
+
+        except NotFoundError:
+            logger.debug(f"Index {self._index_name} not found when getting server '{path}'")
+            return None
+        except Exception as e:
+            logger.error(f"Error getting server '{path}' from OpenSearch: {e}", exc_info=True)
+            return None
 
     async def list_all(self) -> Dict[str, Dict[str, Any]]:
-        """List all servers."""
-        return self._servers.copy()
+        """List all servers - queries OpenSearch directly."""
+        client = await self._get_client()
+
+        try:
+            response = await client.search(
+                index=self._index_name,
+                body={
+                    "query": {"match_all": {}},
+                    "size": 10000
+                }
+            )
+
+            servers = {}
+            for hit in response["hits"]["hits"]:
+                server_info = hit["_source"]
+                path = server_info["path"]
+                servers[path] = server_info
+
+            return servers
+
+        except NotFoundError:
+            logger.debug(f"Index {self._index_name} not found when listing servers")
+            return {}
+        except Exception as e:
+            logger.error(f"Error listing servers from OpenSearch: {e}", exc_info=True)
+            return {}
 
     async def create(self, server_info: Dict[str, Any]) -> bool:
         """Create a new server."""
         path = server_info["path"]
 
-        if path in self._servers:
+        # Check if server already exists by querying OpenSearch
+        existing = await self.get(path)
+        if existing:
             logger.error(f"Server path '{path}' already exists")
             return False
 
@@ -157,9 +207,6 @@ class OpenSearchServerRepository(ServerRepositoryBase):
                     logger.error(f"Document for '{path}' not available after retries")
                     return False
 
-                # Reload cache to sync with OpenSearch after write
-                await self.load_all()
-
             else:
                 # Regular OpenSearch - use custom ID for backwards compatibility
                 await client.index(
@@ -168,8 +215,6 @@ class OpenSearchServerRepository(ServerRepositoryBase):
                     body=server_info,
                     refresh=True
                 )
-                # Update local cache immediately for regular OpenSearch
-                self._servers[path] = server_info
 
             logger.info(f"Created server '{server_info['server_name']}' at '{path}'")
             return True
@@ -180,32 +225,24 @@ class OpenSearchServerRepository(ServerRepositoryBase):
 
     async def update(self, path: str, server_info: Dict[str, Any]) -> bool:
         """Update an existing server."""
-        if path not in self._servers:
-            logger.error(f"Cannot update server at '{path}': not found")
-            return False
-
         client = await self._get_client()
 
         server_info["path"] = path
         server_info["updated_at"] = datetime.utcnow().isoformat()
 
         try:
-            if self._is_aoss():
-                # Find existing document by path field for AOSS
-                search_response = await client.search(
-                    index=self._index_name,
-                    body={"query": {"term": {"path": path}}}
-                )
+            # Find existing document by path field
+            search_response = await client.search(
+                index=self._index_name,
+                body={"query": {"term": {"path": path}}}
+            )
 
-                if search_response['hits']['total']['value'] == 0:
-                    logger.error(f"Server at '{path}' not found in OpenSearch")
-                    return False
+            if search_response['hits']['total']['value'] == 0:
+                logger.error(f"Server at '{path}' not found in OpenSearch")
+                return False
 
-                # Get the auto-generated document ID
-                doc_id = search_response['hits']['hits'][0]['_id']
-            else:
-                # Regular OpenSearch - use deterministic ID
-                doc_id = self._path_to_doc_id(path)
+            # Get the document ID (auto-generated for AOSS, deterministic for regular OpenSearch)
+            doc_id = search_response['hits']['hits'][0]['_id']
 
             # Update using the document ID
             if self._is_aoss():
@@ -215,9 +252,6 @@ class OpenSearchServerRepository(ServerRepositoryBase):
                     id=doc_id,
                     body={"doc": server_info}
                 )
-
-                # Reload cache to sync with OpenSearch after write
-                await self.load_all()
             else:
                 await client.update(
                     index=self._index_name,
@@ -225,8 +259,6 @@ class OpenSearchServerRepository(ServerRepositoryBase):
                     body={"doc": server_info},
                     refresh=True
                 )
-                # Update local cache immediately for regular OpenSearch
-                self._servers[path] = server_info
 
             logger.info(f"Updated server '{server_info['server_name']}' ({path})")
             return True
@@ -237,51 +269,36 @@ class OpenSearchServerRepository(ServerRepositoryBase):
 
     async def delete(self, path: str) -> bool:
         """Delete a server."""
-        if path not in self._servers:
-            logger.error(f"Cannot delete server at '{path}': not found")
-            return False
-
         client = await self._get_client()
 
         try:
-            if self._is_aoss():
-                # Find existing document by path field for AOSS
-                search_response = await client.search(
-                    index=self._index_name,
-                    body={"query": {"term": {"path": path}}}
-                )
+            # Find existing document by path field
+            search_response = await client.search(
+                index=self._index_name,
+                body={"query": {"term": {"path": path}}}
+            )
 
-                if search_response['hits']['total']['value'] == 0:
-                    logger.error(f"Server at '{path}' not found in OpenSearch")
-                    return False
+            if search_response['hits']['total']['value'] == 0:
+                logger.error(f"Server at '{path}' not found in OpenSearch")
+                return False
 
-                # Get the auto-generated document ID
-                doc_id = search_response['hits']['hits'][0]['_id']
-            else:
-                # Regular OpenSearch - use deterministic ID
-                doc_id = self._path_to_doc_id(path)
+            # Get the document ID and server name
+            doc_id = search_response['hits']['hits'][0]['_id']
+            server_name = search_response['hits']['hits'][0]['_source'].get('server_name', 'Unknown')
 
             # Delete using the document ID
-            server_name = self._servers[path].get('server_name', 'Unknown')
-
             if self._is_aoss():
                 # AOSS doesn't support refresh=true
                 await client.delete(
                     index=self._index_name,
                     id=doc_id
                 )
-
-                # Reload cache to sync with OpenSearch after write
-                await self.load_all()
             else:
                 await client.delete(
                     index=self._index_name,
                     id=doc_id,
                     refresh=True
                 )
-
-                # Update local cache immediately for regular OpenSearch
-                del self._servers[path]
 
             logger.info(f"Deleted server '{server_name}' from '{path}'")
             return True
@@ -302,28 +319,20 @@ class OpenSearchServerRepository(ServerRepositoryBase):
         client = await self._get_client()
 
         try:
-            # Find document ID (AOSS uses auto-generated IDs)
-            if self._is_aoss():
-                search_response = await client.search(
-                    index=self._index_name,
-                    body={"query": {"term": {"path": path}}}
-                )
+            # Find document by path field
+            search_response = await client.search(
+                index=self._index_name,
+                body={"query": {"term": {"path": path}}}
+            )
 
-                if search_response['hits']['total']['value'] == 0:
-                    logger.error(f"Server at '{path}' not found in OpenSearch")
-                    return False
+            if search_response['hits']['total']['value'] == 0:
+                logger.error(f"Server at '{path}' not found in OpenSearch")
+                return False
 
-                # Get the auto-generated document ID and server data
-                doc_id = search_response['hits']['hits'][0]['_id']
-                server_data = search_response['hits']['hits'][0]['_source']
-                server_name = server_data.get('server_name', path)
-            else:
-                # Regular OpenSearch - use deterministic ID
-                if path not in self._servers:
-                    logger.error(f"Cannot toggle service at '{path}': not found")
-                    return False
-                doc_id = self._path_to_doc_id(path)
-                server_name = self._servers[path]["server_name"]
+            # Get the document ID and server data
+            doc_id = search_response['hits']['hits'][0]['_id']
+            server_data = search_response['hits']['hits'][0]['_source']
+            server_name = server_data.get('server_name', path)
 
             # Update state in OpenSearch
             update_body = {"doc": {"is_enabled": enabled, "updated_at": datetime.utcnow().isoformat()}}
@@ -335,9 +344,6 @@ class OpenSearchServerRepository(ServerRepositoryBase):
                     id=doc_id,
                     body=update_body
                 )
-
-                # Reload cache to sync with OpenSearch after write
-                await self.load_all()
             else:
                 await client.update(
                     index=self._index_name,
@@ -345,10 +351,6 @@ class OpenSearchServerRepository(ServerRepositoryBase):
                     body=update_body,
                     refresh=True
                 )
-
-                # Update in-memory cache immediately for regular OpenSearch
-                if path in self._servers:
-                    self._servers[path]["is_enabled"] = enabled
 
             logger.info(f"Toggled '{server_name}' ({path}) to {enabled}")
             return True
