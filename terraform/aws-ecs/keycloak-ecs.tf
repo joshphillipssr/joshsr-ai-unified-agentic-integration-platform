@@ -232,7 +232,7 @@ resource "aws_ecs_task_definition" "keycloak" {
     {
       name              = "keycloak"
       image             = "${aws_ecr_repository.keycloak.repository_url}:latest"
-      resolveImageDigestEnabled  = false
+      versionConsistency = "disabled"
       essential         = true
 
       portMappings = [
