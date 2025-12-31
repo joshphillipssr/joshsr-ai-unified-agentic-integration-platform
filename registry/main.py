@@ -115,7 +115,7 @@ async def lifespan(app: FastAPI):
 
         # Get repository based on STORAGE_BACKEND configuration
         search_repo = get_search_repository()
-        backend_name = "OpenSearch" if settings.storage_backend == "opensearch" else "FAISS"
+        backend_name = "DocumentDB" if settings.storage_backend == "documentdb" else "FAISS"
 
         logger.info(f"🔍 Initializing {backend_name} search service...")
         await search_repo.initialize()

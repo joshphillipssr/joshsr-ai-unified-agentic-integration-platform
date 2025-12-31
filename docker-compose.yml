@@ -1,5 +1,15 @@
 version: '3.8'
 
+# DocumentDB Initialization:
+# For AWS DocumentDB Elastic Cluster setup, run the initialization script:
+#   export DOCUMENTDB_HOST=your-cluster.docdb.amazonaws.com
+#   export DOCUMENTDB_USERNAME=admin
+#   export DOCUMENTDB_PASSWORD=yourpassword
+#   ./scripts/init-documentdb.sh
+#
+# Then set STORAGE_BACKEND=documentdb in your environment and restart services.
+# Note: DocumentDB is a managed AWS service and runs outside of Docker.
+
 services:
   # OpenSearch for registry data storage and hybrid search
   opensearch:

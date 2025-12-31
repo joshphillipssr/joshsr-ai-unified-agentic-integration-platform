@@ -41,10 +41,6 @@ module "mcp_gateway" {
   # Keycloak configuration
   keycloak_domain = local.keycloak_domain
 
-  # OpenSearch Serverless configuration
-  opensearch_serverless_endpoint       = aws_opensearchserverless_collection.main.collection_endpoint
-  opensearch_serverless_collection_arn = aws_opensearchserverless_collection.main.arn
-
   # Container images
   registry_image_uri               = var.registry_image_uri
   auth_server_image_uri            = var.auth_server_image_uri

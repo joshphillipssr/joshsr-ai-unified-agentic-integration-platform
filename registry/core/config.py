@@ -75,33 +75,23 @@ class Settings(BaseSettings):
     a2a_scanner_llm_api_key: str = ""  # Optional Azure OpenAI API key for LLM-based analysis
     
     # Storage Backend Configuration
-    storage_backend: str = "file"  # Options: "file", "opensearch"
-    
-    # OpenSearch Configuration (only used when storage_backend="opensearch")
-    opensearch_host: str = "localhost"
-    opensearch_port: int = 9200
-    opensearch_user: Optional[str] = None
-    opensearch_password: Optional[str] = None
-    opensearch_use_ssl: bool = False
-    opensearch_verify_certs: bool = False
-    opensearch_auth_type: str = "basic"  # Options: "basic", "aws_iam"
-    opensearch_region: Optional[str] = None  # AWS region (required for aws_iam auth)
-    
-    # OpenSearch Namespace (for multi-tenancy support)
-    opensearch_namespace: str = "default"
-    
-    # OpenSearch Index Names (computed from namespace)
-    opensearch_index_servers: str = "mcp-servers"
-    opensearch_index_agents: str = "mcp-agents"
-    opensearch_index_scopes: str = "mcp-scopes"
-    opensearch_index_embeddings: str = "mcp-embeddings"
-    opensearch_index_security_scans: str = "mcp-security-scans"
-    opensearch_index_federation_config: str = "mcp-federation-config"
-    
-    # Hybrid Search Weights
-    opensearch_hybrid_bm25_weight: float = 0.4
-    opensearch_hybrid_knn_weight: float = 0.6
-    
+    storage_backend: str = "file"  # Options: "file", "documentdb"
+
+    # DocumentDB Configuration (only used when storage_backend="documentdb")
+    documentdb_host: str = "localhost"
+    documentdb_port: int = 27017
+    documentdb_database: str = "mcp_registry"
+    documentdb_username: Optional[str] = None
+    documentdb_password: Optional[str] = None
+    documentdb_use_tls: bool = True
+    documentdb_tls_ca_file: str = "global-bundle.pem"
+    documentdb_use_iam: bool = False
+    documentdb_replica_set: Optional[str] = None
+    documentdb_read_preference: str = "secondaryPreferred"
+
+    # DocumentDB Namespace (for multi-tenancy support)
+    documentdb_namespace: str = "default"
+
     # Container paths - adjust for local development
     container_app_dir: Path = Path("/app")
     container_registry_dir: Path = Path("/app/registry")
@@ -225,14 +215,14 @@ class EmbeddingConfig:
 
     @property
     def index_name(self) -> str:
-        """Generate dimension-specific index name.
+        """Generate dimension-specific collection/index name.
 
         Returns index name in format: mcp-embeddings-{dimensions}-{namespace}
         Example: mcp-embeddings-1536-default
         """
-        base_name = self.settings.opensearch_index_embeddings
+        base_name = "mcp-embeddings"
         dimensions = self.settings.embeddings_model_dimensions
-        namespace = self.settings.opensearch_namespace
+        namespace = self.settings.documentdb_namespace
 
         # Replace base name with dimension-specific name
         return f"{base_name}-{dimensions}-{namespace}"

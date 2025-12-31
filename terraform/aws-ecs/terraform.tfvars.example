@@ -57,36 +57,6 @@ keycloak_database_username = "keycloak"
 keycloak_database_password = "CHANGE-ME-DB-PASSWORD"
 
 # ============================================================================
-# OPENSEARCH CONFIGURATION
-# ============================================================================
-
-# OpenSearch admin password (REQUIRED)
-# Must be at least 8 characters with uppercase, lowercase, number, and special character
-opensearch_admin_password = "CHANGE-ME-OpenSearch123!"
-
-# OpenSearch Cluster Configuration (OPTIONAL)
-# Uncomment to override defaults for production cluster
-
-# Number of OpenSearch nodes in the cluster
-# Default: 3 (for high availability across 3 AZs)
-# opensearch_node_count = 3
-
-# CPU per OpenSearch node (in vCPU units, 1024 = 1 vCPU)
-# Default: 2048 (2 vCPU per node)
-# For higher workloads, increase to 4096 (4 vCPU)
-# opensearch_cpu = 2048
-
-# Memory per OpenSearch node (in MB)
-# Default: 4096 (4 GB per node)
-# For higher workloads, increase to 8192 (8 GB)
-# opensearch_memory = 4096
-
-# OpenSearch version
-# Default: "2.11.1"
-# Check https://opensearch.org/docs/latest/ for available versions
-# opensearch_version = "2.11.1"
-
-# ============================================================================
 # CONTAINER IMAGE URIS (REQUIRED)
 # ============================================================================
 
@@ -213,3 +183,28 @@ session_cookie_domain = ""
 # embeddings_model_dimensions = 1536
 # embeddings_aws_region       = "us-east-1"
 # embeddings_api_key          = ""  # Empty for Bedrock (uses IAM)
+
+# ============================================================================
+# DOCUMENTDB ELASTIC CLUSTER CONFIGURATION
+# ============================================================================
+
+# DocumentDB Elastic Cluster credentials (REQUIRED)
+# Admin username for DocumentDB
+documentdb_admin_username = "docdbadmin"
+
+# Admin password for DocumentDB (minimum 8 characters)
+documentdb_admin_password = "CHANGE-ME-DocumentDB-Password123!"
+
+# DocumentDB Elastic Cluster capacity configuration (OPTIONAL)
+# Uncomment to override defaults
+
+# vCPU capacity per shard
+# Options: 2, 4, 8, 16, 32, 64
+# Default: 2 (recommended for small-medium workloads)
+# For production with high load, use 4 or 8
+# documentdb_shard_capacity = 2
+
+# Number of shards (1-32)
+# Default: 1 (recommended for most deployments)
+# Increase only when scaling beyond single shard capacity
+# documentdb_shard_count = 1

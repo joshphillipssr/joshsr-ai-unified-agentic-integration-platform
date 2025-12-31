@@ -94,12 +94,6 @@ variable "keycloak_database_password" {
   sensitive   = true
 }
 
-variable "opensearch_admin_password" {
-  description = "OpenSearch admin password (minimum 8 characters with uppercase, lowercase, number, and special character)"
-  type        = string
-  sensitive   = true
-}
-
 variable "keycloak_database_min_acu" {
   description = "Minimum Aurora Capacity Units"
   type        = number
@@ -253,30 +247,41 @@ variable "session_cookie_domain" {
 
 
 # =============================================================================
-# OPENSEARCH CLUSTER CONFIGURATION
+# DOCUMENTDB ELASTIC CLUSTER CONFIGURATION
 # =============================================================================
 
-variable "opensearch_node_count" {
-  description = "Number of OpenSearch nodes in cluster"
-  type        = number
-  default     = 3
-}
-
-variable "opensearch_cpu" {
-  description = "CPU units for OpenSearch tasks (1 vCPU = 1024)"
-  type        = number
-  default     = 2048
-}
-
-variable "opensearch_memory" {
-  description = "Memory in MB for OpenSearch tasks"
-  type        = number
-  default     = 4096
-}
-
-variable "opensearch_version" {
-  description = "OpenSearch Docker image version"
+variable "documentdb_admin_username" {
+  description = "DocumentDB Elastic Cluster admin username"
   type        = string
-  default     = "2.11.1"
+  sensitive   = true
+  default     = "docdbadmin"
+}
+
+variable "documentdb_admin_password" {
+  description = "DocumentDB Elastic Cluster admin password (minimum 8 characters)"
+  type        = string
+  sensitive   = true
+}
+
+variable "documentdb_shard_capacity" {
+  description = "vCPU capacity per shard (2, 4, 8, 16, 32, or 64)"
+  type        = number
+  default     = 2
+
+  validation {
+    condition     = contains([2, 4, 8, 16, 32, 64], var.documentdb_shard_capacity)
+    error_message = "Shard capacity must be one of: 2, 4, 8, 16, 32, 64"
+  }
+}
+
+variable "documentdb_shard_count" {
+  description = "Number of shards (1-32). Start with 1, scale as needed."
+  type        = number
+  default     = 1
+
+  validation {
+    condition     = var.documentdb_shard_count >= 1 && var.documentdb_shard_count <= 32
+    error_message = "Shard count must be between 1 and 32"
+  }
 }
 

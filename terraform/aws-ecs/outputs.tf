@@ -143,31 +143,37 @@ output "registry_url" {
 # }
 
 #
-# OpenSearch Serverless Outputs
+# DocumentDB Elastic Cluster Outputs
 #
 
-output "opensearch_serverless_collection_endpoint" {
-  description = "OpenSearch Serverless collection endpoint URL"
-  value       = aws_opensearchserverless_collection.main.collection_endpoint
+output "documentdb_elastic_cluster_endpoint" {
+  description = "DocumentDB Elastic Cluster endpoint"
+  value       = aws_docdbelastic_cluster.registry.endpoint
 }
 
-output "opensearch_serverless_collection_id" {
-  description = "OpenSearch Serverless collection ID"
-  value       = aws_opensearchserverless_collection.main.id
+output "documentdb_elastic_cluster_arn" {
+  description = "DocumentDB Elastic Cluster ARN"
+  value       = aws_docdbelastic_cluster.registry.arn
 }
 
-output "opensearch_serverless_collection_arn" {
-  description = "OpenSearch Serverless collection ARN"
-  value       = aws_opensearchserverless_collection.main.arn
+output "documentdb_security_group_id" {
+  description = "DocumentDB security group ID"
+  value       = aws_security_group.documentdb.id
 }
 
-output "opensearch_serverless_vpc_endpoint_id" {
-  description = "OpenSearch Serverless VPC endpoint ID"
-  value       = aws_opensearchserverless_vpc_endpoint.main.id
+output "documentdb_kms_key_id" {
+  description = "KMS key ID for DocumentDB encryption"
+  value       = aws_kms_key.documentdb.id
 }
 
-output "opensearch_serverless_endpoint_security_group_id" {
-  description = "Security group ID for OpenSearch Serverless VPC endpoint"
-  value       = aws_security_group.opensearch_endpoint.id
+output "documentdb_kms_key_arn" {
+  description = "KMS key ARN for DocumentDB encryption"
+  value       = aws_kms_key.documentdb.arn
+}
+
+output "documentdb_secrets_manager_secret_arn" {
+  description = "Secrets Manager secret ARN for DocumentDB credentials"
+  value       = aws_secretsmanager_secret.documentdb_credentials.arn
+  sensitive   = true
 }
 
