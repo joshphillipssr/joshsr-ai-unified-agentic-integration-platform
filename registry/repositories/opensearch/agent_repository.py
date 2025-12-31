@@ -283,10 +283,19 @@ class OpenSearchAgentRepository(AgentRepositoryBase):
         try:
             if self._is_aoss():
                 # OpenSearch Serverless doesn't support custom IDs or refresh=true
-                await client.index(
-                    index=self._index_name,
-                    body=agent_dict
-                )
+                try:
+                    await client.index(
+                        index=self._index_name,
+                        body=agent_dict,
+                        op_type='create'  # Fail if document already exists
+                    )
+                except Exception as create_error:
+                    error_str = str(create_error).lower()
+                    if 'version conflict' in error_str or 'already exists' in error_str:
+                        logger.warning(f"Agent '{path}' already exists in AOSS (version conflict)")
+                        raise ValueError(f"Agent path '{path}' already exists")
+                    else:
+                        raise
 
                 # Wait for AOSS eventual consistency - document must be queryable before proceeding
                 logger.info(f"Waiting for AOSS to index document for '{path}'...")
