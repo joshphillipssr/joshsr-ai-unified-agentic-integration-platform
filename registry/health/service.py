@@ -256,7 +256,7 @@ class HealthMonitoringService:
         
         if service_path:
             # Single service update - get data efficiently
-            server_info = server_service.get_server_info(service_path)
+            server_info = await server_service.get_server_info(service_path)
             if server_info:
                 health_data = self._get_service_health_data_fast(service_path, server_info)
                 await self.websocket_manager.broadcast_update(service_path, health_data)
@@ -345,10 +345,12 @@ class HealthMonitoringService:
             # Regenerate nginx configuration when health status changes
             try:
                 from ..core.nginx_service import nginx_service
-                enabled_servers = {
-                    path: server_service.get_server_info(path) 
-                    for path in server_service.get_enabled_services()
-                }
+                # Build enabled_servers dict with proper async/await
+                enabled_servers = {}
+                for path in await server_service.get_enabled_services():
+                    server_info = await server_service.get_server_info(path)
+                    if server_info:
+                        enabled_servers[path] = server_info
                 await nginx_service.generate_config_async(enabled_servers)
                 logger.info("Nginx configuration regenerated due to health status changes")
             except Exception as e:
@@ -895,14 +897,14 @@ class HealthMonitoringService:
             await asyncio.sleep(0.5)
 
             # Get server info to pass transport configuration
-            server_info = server_service.get_server_info(service_path)
+            server_info = await server_service.get_server_info(service_path)
             logger.info(f"Fetching tools from {proxy_pass_url} for {service_path}")
             tool_list = await mcp_client_service.get_tools_from_server_with_server_info(proxy_pass_url, server_info)
             logger.info(f"Tool fetch result for {service_path}: {len(tool_list) if tool_list else 'None'} tools")
             
             if tool_list is not None:
                 new_tool_count = len(tool_list)
-                current_server_info = server_service.get_server_info(service_path)
+                current_server_info = await server_service.get_server_info(service_path)
                 if current_server_info:
                     current_tool_count = current_server_info.get("num_tools", 0)
                     
@@ -946,8 +948,8 @@ class HealthMonitoringService:
         """Perform an immediate health check for a single service."""
         from ..services.server_service import server_service
         import httpx
-        
-        server_info = server_service.get_server_info(service_path)
+
+        server_info = await server_service.get_server_info(service_path)
         if not server_info:
             return "error: server not registered", None
 
@@ -1009,10 +1011,12 @@ class HealthMonitoringService:
         if previous_status != current_status:
             try:
                 from ..core.nginx_service import nginx_service
-                enabled_servers = {
-                    path: server_service.get_server_info(path) 
-                    for path in server_service.get_enabled_services()
-                }
+                # Build enabled_servers dict with proper async/await
+                enabled_servers = {}
+                for path in await server_service.get_enabled_services():
+                    server_info = await server_service.get_server_info(path)
+                    if server_info:
+                        enabled_servers[path] = server_info
                 await nginx_service.generate_config_async(enabled_servers)
                 logger.info(f"Nginx configuration regenerated due to status change for {service_path}: {previous_status} -> {current_status}")
             except Exception as e:

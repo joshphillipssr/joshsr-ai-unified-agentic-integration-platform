@@ -4,7 +4,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from opensearchpy import AsyncOpenSearch, NotFoundError
+from opensearchpy import AsyncOpenSearch, NotFoundError, RequestError
 
 from ...core.config import settings
 from ...schemas.federation_schema import FederationConfig
@@ -107,12 +107,31 @@ class OpenSearchFederationConfigRepository(FederationConfigRepositoryBase):
         """
         try:
             client = await self._get_client()
-            response = await client.get(
-                index=self._index_name,
-                id=config_id
-            )
 
-            source = response["_source"]
+            # AOSS doesn't support custom IDs, so we need to search by config_id field
+            if self._is_aoss():
+                response = await client.search(
+                    index=self._index_name,
+                    body={
+                        "query": {
+                            "term": {"config_id": config_id}
+                        },
+                        "size": 1
+                    }
+                )
+
+                if response["hits"]["total"]["value"] == 0:
+                    logger.info(f"Federation config not found: {config_id}")
+                    return None
+
+                source = response["hits"]["hits"][0]["_source"]
+            else:
+                # Regular OpenSearch supports custom IDs
+                response = await client.get(
+                    index=self._index_name,
+                    id=config_id
+                )
+                source = response["_source"]
 
             # Remove internal fields before creating Pydantic model
             source.pop("config_id", None)
@@ -151,12 +170,31 @@ class OpenSearchFederationConfigRepository(FederationConfigRepositoryBase):
             client = await self._get_client()
 
             # Check if config exists to determine if this is create or update
+            # Skip this check for AOSS due to eventual consistency issues
             existing = None
-            try:
-                existing_doc = await client.get(index=self._index_name, id=config_id)
-                existing = existing_doc["_source"]
-            except NotFoundError:
-                pass
+            if not self._is_aoss():
+                try:
+                    existing_doc = await client.get(index=self._index_name, id=config_id)
+                    existing = existing_doc["_source"]
+                except NotFoundError:
+                    pass
+            else:
+                # For AOSS, try to search for existing config
+                try:
+                    search_result = await client.search(
+                        index=self._index_name,
+                        body={
+                            "query": {
+                                "term": {"config_id": config_id}
+                            },
+                            "size": 1
+                        }
+                    )
+                    if search_result["hits"]["total"]["value"] > 0:
+                        existing = search_result["hits"]["hits"][0]["_source"]
+                except (NotFoundError, RequestError):
+                    # Index might not be ready yet, treat as new config
+                    pass
 
             # Prepare document
             doc = config.model_dump()
