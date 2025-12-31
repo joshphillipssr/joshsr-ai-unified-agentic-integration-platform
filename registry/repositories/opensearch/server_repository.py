@@ -42,8 +42,8 @@ class OpenSearchServerRepository(ServerRepositoryBase):
     async def _wait_for_document_available(
         self,
         path: str,
-        max_retries: int = 10,
-        initial_delay: float = 1.0
+        max_retries: int = 8,
+        initial_delay: float = 3.0
     ) -> bool:
         """Wait for AOSS eventual consistency - retry until document is queryable.
 
@@ -227,17 +227,9 @@ class OpenSearchServerRepository(ServerRepositoryBase):
             return {}
 
     async def create(self, server_info: Dict[str, Any]) -> bool:
-        """Create a new server."""
+        """Create a new server - AOSS-safe implementation using query-first pattern."""
         path = server_info["path"]
-
-        # Check if server already exists by querying OpenSearch
-        existing = await self.get(path)
-        if existing:
-            logger.error(f"Server path '{path}' already exists")
-            return False
-
         client = await self._get_client()
-        doc_id = self._path_to_doc_id(path)
 
         server_info["registered_at"] = datetime.utcnow().isoformat()
         server_info["updated_at"] = datetime.utcnow().isoformat()
@@ -246,20 +238,26 @@ class OpenSearchServerRepository(ServerRepositoryBase):
 
         try:
             if self._is_aoss():
-                # OpenSearch Serverless doesn't support custom IDs or refresh=true
-                try:
-                    await client.index(
-                        index=self._index_name,
-                        body=server_info,
-                        op_type='create'  # Fail if document already exists
-                    )
-                except Exception as create_error:
-                    error_str = str(create_error).lower()
-                    if 'version conflict' in error_str or 'already exists' in error_str:
-                        logger.warning(f"Server '{path}' already exists in AOSS (version conflict)")
-                        return False
-                    else:
-                        raise
+                # AOSS: Use query-first pattern to prevent race conditions and duplicates
+                # Check if document already exists by direct query (not cached get())
+                search_response = await client.search(
+                    index=self._index_name,
+                    body={
+                        "query": {"term": {"path": path}},
+                        "size": 1
+                    }
+                )
+
+                if search_response['hits']['total']['value'] > 0:
+                    logger.error(f"Server path '{path}' already exists")
+                    return False
+
+                # No existing document - safe to create
+                # Note: AOSS doesn't support op_type='create', but query-first reduces race window
+                await client.index(
+                    index=self._index_name,
+                    body=server_info
+                )
 
                 # Wait for AOSS eventual consistency - document must be queryable before proceeding
                 logger.info(f"Waiting for AOSS to index document for '{path}'...")
@@ -269,6 +267,13 @@ class OpenSearchServerRepository(ServerRepositoryBase):
 
             else:
                 # Regular OpenSearch - use custom ID for backwards compatibility
+                # Check if exists first
+                existing = await self.get(path)
+                if existing:
+                    logger.error(f"Server path '{path}' already exists")
+                    return False
+
+                doc_id = self._path_to_doc_id(path)
                 await client.index(
                     index=self._index_name,
                     id=doc_id,

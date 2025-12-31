@@ -823,7 +823,7 @@ class RegistryClient:
                 headers=headers,
                 json=data,
                 params=params,
-                timeout=30
+                timeout=120
             )
         else:
             # Send as form-encoded for server registration
@@ -833,7 +833,7 @@ class RegistryClient:
                 headers=headers,
                 data=data,
                 params=params,
-                timeout=30
+                timeout=120
             )
 
         try:

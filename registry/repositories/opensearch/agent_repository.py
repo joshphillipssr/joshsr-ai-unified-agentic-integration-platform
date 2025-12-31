@@ -44,8 +44,8 @@ class OpenSearchAgentRepository(AgentRepositoryBase):
     async def _wait_for_document_available(
         self,
         path: str,
-        max_retries: int = 10,
-        initial_delay: float = 1.0
+        max_retries: int = 8,
+        initial_delay: float = 3.0
     ) -> bool:
         """Wait for AOSS eventual consistency - retry until document is queryable.
 
@@ -258,17 +258,9 @@ class OpenSearchAgentRepository(AgentRepositoryBase):
             return []
 
     async def create(self, agent: AgentCard) -> AgentCard:
-        """Create a new agent."""
+        """Create a new agent - AOSS-safe implementation using query-first pattern."""
         path = agent.path
-
-        # Check if agent already exists by querying OpenSearch
-        existing = await self.get(path)
-        if existing:
-            logger.error(f"Agent path '{path}' already exists")
-            raise ValueError(f"Agent path '{path}' already exists")
-
         client = await self._get_client()
-        doc_id = self._path_to_doc_id(path)
 
         # Set timestamps
         if not agent.registered_at:
@@ -282,20 +274,26 @@ class OpenSearchAgentRepository(AgentRepositoryBase):
 
         try:
             if self._is_aoss():
-                # OpenSearch Serverless doesn't support custom IDs or refresh=true
-                try:
-                    await client.index(
-                        index=self._index_name,
-                        body=agent_dict,
-                        op_type='create'  # Fail if document already exists
-                    )
-                except Exception as create_error:
-                    error_str = str(create_error).lower()
-                    if 'version conflict' in error_str or 'already exists' in error_str:
-                        logger.warning(f"Agent '{path}' already exists in AOSS (version conflict)")
-                        raise ValueError(f"Agent path '{path}' already exists")
-                    else:
-                        raise
+                # AOSS: Use query-first pattern to prevent race conditions and duplicates
+                # Check if document already exists by direct query (not cached get())
+                search_response = await client.search(
+                    index=self._index_name,
+                    body={
+                        "query": {"term": {"path": path}},
+                        "size": 1
+                    }
+                )
+
+                if search_response['hits']['total']['value'] > 0:
+                    logger.error(f"Agent path '{path}' already exists")
+                    raise ValueError(f"Agent path '{path}' already exists")
+
+                # No existing document - safe to create
+                # Note: AOSS doesn't support op_type='create', but query-first reduces race window
+                await client.index(
+                    index=self._index_name,
+                    body=agent_dict
+                )
 
                 # Wait for AOSS eventual consistency - document must be queryable before proceeding
                 logger.info(f"Waiting for AOSS to index document for '{path}'...")
@@ -305,6 +303,13 @@ class OpenSearchAgentRepository(AgentRepositoryBase):
 
             else:
                 # Regular OpenSearch - use custom ID for backwards compatibility
+                # Check if exists first
+                existing = await self.get(path)
+                if existing:
+                    logger.error(f"Agent path '{path}' already exists")
+                    raise ValueError(f"Agent path '{path}' already exists")
+
+                doc_id = self._path_to_doc_id(path)
                 await client.index(
                     index=self._index_name,
                     id=doc_id,
