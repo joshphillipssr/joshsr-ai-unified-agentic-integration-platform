@@ -196,6 +196,30 @@ class DocumentDBSearchRepository(SearchRepositoryBase):
             logger.error(f"Failed to index agent in search: {e}", exc_info=True)
 
 
+    def _calculate_cosine_similarity(
+        self,
+        vec1: List[float],
+        vec2: List[float]
+    ) -> float:
+        """Calculate cosine similarity between two vectors.
+
+        Returns a value between 0 and 1, where 1 is identical.
+        """
+        import math
+
+        if not vec1 or not vec2 or len(vec1) != len(vec2):
+            return 0.0
+
+        dot_product = sum(a * b for a, b in zip(vec1, vec2))
+        magnitude1 = math.sqrt(sum(a * a for a in vec1))
+        magnitude2 = math.sqrt(sum(b * b for b in vec2))
+
+        if magnitude1 == 0 or magnitude2 == 0:
+            return 0.0
+
+        return dot_product / (magnitude1 * magnitude2)
+
+
     async def remove_entity(
         self,
         path: str,
@@ -219,118 +243,143 @@ class DocumentDBSearchRepository(SearchRepositoryBase):
         entity_types: Optional[List[str]] = None,
         max_results: int = 10,
     ) -> Dict[str, List[Dict[str, Any]]]:
-        """Perform hybrid search (text + vector)."""
+        """Perform hybrid search (text + vector).
+
+        Note: DocumentDB vector search returns results sorted by similarity
+        but does NOT support $meta operators for score retrieval.
+        We apply text-based boosting as a secondary ranking factor.
+        """
         collection = await self._get_collection()
 
         try:
             model = await self._get_embedding_model()
             query_embedding = model.encode([query])[0].tolist()
 
+            # DocumentDB vector search returns results sorted by similarity
+            # We get more results than needed to allow for text-based re-ranking
             pipeline = [
                 {
                     "$search": {
                         "vectorSearch": {
                             "vector": query_embedding,
                             "path": "embedding",
-                            "k": max_results * 10,
-                            "index": "embedding_vector_idx"
+                            "similarity": "cosine",
+                            "k": max_results * 3  # Get 3x results for re-ranking
                         }
                     }
-                },
-                {
-                    "$addFields": {
-                        "vector_score": {"$meta": "searchScore"}
-                    }
-                },
-                {
-                    "$match": {
-                        "$or": [
-                            {"name": {"$regex": query, "$options": "i"}},
-                            {"description": {"$regex": query, "$options": "i"}},
-                            {"tags": {"$in": [query]}}
-                        ]
-                    }
-                },
-                {
-                    "$addFields": {
-                        "text_score": {
-                            "$add": [
-                                {
-                                    "$cond": [
-                                        {
-                                            "$regexMatch": {
-                                                "input": "$name",
-                                                "regex": query,
-                                                "options": "i"
-                                            }
-                                        },
-                                        3.0,
-                                        0.0
-                                    ]
-                                },
-                                {
-                                    "$cond": [
-                                        {
-                                            "$regexMatch": {
-                                                "input": "$description",
-                                                "regex": query,
-                                                "options": "i"
-                                            }
-                                        },
-                                        2.0,
-                                        0.0
-                                    ]
-                                }
-                            ]
-                        }
-                    }
-                },
-                {
-                    "$addFields": {
-                        "combined_score": {
-                            "$add": [
-                                {"$multiply": ["$vector_score", 0.6]},
-                                {"$multiply": ["$text_score", 0.4]}
-                            ]
-                        }
-                    }
-                },
-                {"$sort": {"combined_score": -1}},
-                {"$limit": max_results}
+                }
             ]
 
+            # Apply entity type filter if specified
             if entity_types:
-                pipeline.insert(1, {"$match": {"entity_type": {"$in": entity_types}}})
+                pipeline.append({"$match": {"entity_type": {"$in": entity_types}}})
+
+            # Add text-based scoring for re-ranking
+            # Higher scores for matches in name (3.0) and description (2.0)
+            pipeline.append({
+                "$addFields": {
+                    "text_boost": {
+                        "$add": [
+                            {
+                                "$cond": [
+                                    {
+                                        "$regexMatch": {
+                                            "input": {"$ifNull": ["$name", ""]},
+                                            "regex": query,
+                                            "options": "i"
+                                        }
+                                    },
+                                    3.0,
+                                    0.0
+                                ]
+                            },
+                            {
+                                "$cond": [
+                                    {
+                                        "$regexMatch": {
+                                            "input": {"$ifNull": ["$description", ""]},
+                                            "regex": query,
+                                            "options": "i"
+                                        }
+                                    },
+                                    2.0,
+                                    0.0
+                                ]
+                            }
+                        ]
+                    }
+                }
+            })
+
+            # Sort by text boost (descending), keeping vector search order as secondary
+            pipeline.append({"$sort": {"text_boost": -1}})
+
+            # Limit to requested number of results
+            pipeline.append({"$limit": max_results})
 
             cursor = collection.aggregate(pipeline)
             results = await cursor.to_list(length=max_results)
 
-            grouped_results = {"mcp_servers": [], "a2a_agents": []}
+            # Return results with keys matching the API contract (same as FAISS service)
+            # Calculate cosine similarity scores manually since DocumentDB doesn't expose them
+            grouped_results = {"servers": [], "tools": [], "agents": []}
             for doc in results:
                 entity_type = doc.get("entity_type")
-                result_entry = {
-                    "path": doc.get("path"),
-                    "name": doc.get("name"),
-                    "description": doc.get("description"),
-                    "tags": doc.get("tags", []),
-                    "is_enabled": doc.get("is_enabled", False),
-                    "score": doc.get("combined_score", 0.0),
-                    "metadata": doc.get("metadata", {})
-                }
+
+                # Calculate actual cosine similarity from embeddings
+                doc_embedding = doc.get("embedding", [])
+                vector_score = self._calculate_cosine_similarity(query_embedding, doc_embedding)
+
+                # Get text boost (already calculated in pipeline)
+                text_boost = doc.get("text_boost", 0.0)
+
+                # Hybrid score: Keep DocumentDB's vector ranking but show the actual similarity
+                # Text boost adds a small bonus if there are keyword matches
+                # Vector score is 0-1, text_boost is 0-5, so normalize text_boost to 0-0.15 range
+                relevance_score = vector_score + (text_boost * 0.03)
+                relevance_score = min(1.0, relevance_score)  # Cap at 1.0
 
                 if entity_type == "mcp_server":
-                    grouped_results["mcp_servers"].append(result_entry)
+                    result_entry = {
+                        "entity_type": "mcp_server",
+                        "path": doc.get("path"),
+                        "server_name": doc.get("name"),
+                        "description": doc.get("description"),
+                        "tags": doc.get("tags", []),
+                        "num_tools": doc.get("metadata", {}).get("num_tools", 0),
+                        "is_enabled": doc.get("is_enabled", False),
+                        "relevance_score": relevance_score,
+                        "match_context": doc.get("description"),
+                        "matching_tools": []
+                    }
+                    grouped_results["servers"].append(result_entry)
+
                 elif entity_type == "a2a_agent":
-                    grouped_results["a2a_agents"].append(result_entry)
+                    metadata = doc.get("metadata", {})
+                    result_entry = {
+                        "entity_type": "a2a_agent",
+                        "path": doc.get("path"),
+                        "agent_name": doc.get("name"),
+                        "description": doc.get("description"),
+                        "tags": doc.get("tags", []),
+                        "skills": metadata.get("skills", []),
+                        "visibility": metadata.get("visibility", "public"),
+                        "trust_level": metadata.get("trust_level"),
+                        "is_enabled": doc.get("is_enabled", False),
+                        "relevance_score": relevance_score,
+                        "match_context": doc.get("description"),
+                        "agent_card": metadata.get("agent_card", {})
+                    }
+                    grouped_results["agents"].append(result_entry)
 
             logger.info(
                 f"Hybrid search for '{query}' returned "
-                f"{len(grouped_results['mcp_servers'])} servers, "
-                f"{len(grouped_results['a2a_agents'])} agents"
+                f"{len(grouped_results['servers'])} servers, "
+                f"{len(grouped_results['agents'])} agents"
             )
 
             return grouped_results
 
         except Exception as e:
             logger.error(f"Failed to perform hybrid search: {e}", exc_info=True)
-            return {"mcp_servers": [], "a2a_agents": []}
+            return {"servers": [], "tools": [], "agents": []}

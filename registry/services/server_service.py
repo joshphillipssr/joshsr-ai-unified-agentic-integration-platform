@@ -185,14 +185,32 @@ class ServerService:
 
             # Filter based on accessible_servers
             filtered_servers = {}
+            logger.info(f"[FILTER DEBUG] Starting to filter {len(all_servers)} servers")
+            logger.info(f"[FILTER DEBUG] accessible_servers = {accessible_servers}")
+
             for path, server_info in all_servers.items():
                 server_name = server_info.get("server_name", "")
                 technical_name = path.strip('/')
 
-                # Check if user has access to this server using technical name
-                if technical_name in accessible_servers:
+                logger.info(f"[FILTER DEBUG] Checking server: path='{path}', technical_name='{technical_name}', server_name='{server_name}'")
+
+                # Check if user has access to this server using multiple formats
+                # Support: "currenttime", "/currenttime", "/currenttime/"
+                has_access = False
+                for accessible_server in accessible_servers:
+                    # Normalize both sides by stripping slashes for comparison
+                    normalized_accessible = accessible_server.strip('/')
+                    logger.info(f"[FILTER DEBUG]   Comparing: '{technical_name}' == '{normalized_accessible}' ? {technical_name == normalized_accessible}")
+                    if technical_name == normalized_accessible:
+                        has_access = True
+                        break
+
+                logger.info(f"[FILTER DEBUG]   has_access = {has_access}")
+                if has_access:
                     filtered_servers[path] = server_info
 
+            logger.info(f"[FILTER DEBUG] Final filtered_servers: {len(filtered_servers)} servers")
+            logger.info(f"[FILTER DEBUG] Filtered server paths: {list(filtered_servers.keys())}")
             return filtered_servers
 
     async def user_can_access_server_path(self, path: str, accessible_servers: List[str]) -> bool:
@@ -212,7 +230,14 @@ class ServerService:
 
         # Extract technical name from path (remove leading and trailing slashes)
         technical_name = path.strip('/')
-        return technical_name in accessible_servers
+
+        # Check with normalized paths - support "currenttime", "/currenttime", "/currenttime/"
+        for accessible_server in accessible_servers:
+            normalized_accessible = accessible_server.strip('/')
+            if technical_name == normalized_accessible:
+                return True
+
+        return False
 
     async def is_service_enabled(self, path: str) -> bool:
         """Check if a service is enabled."""

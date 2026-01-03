@@ -112,15 +112,12 @@ async def _create_vector_index(
     collection_name: str,
     recreate: bool,
 ) -> None:
-    """Create vector index for embeddings collection."""
-    index_name = "embedding_vector_idx"
+    """Create vector index for embeddings collection.
 
-    if recreate:
-        try:
-            await collection.drop_index(index_name)
-            logger.info(f"Dropped existing vector index '{index_name}' from {collection_name}")
-        except Exception as e:
-            logger.debug(f"No existing vector index to drop: {e}")
+    Note: DocumentDB Elastic does not support vector indexes.
+    This will be skipped for DocumentDB deployments.
+    """
+    index_name = "embedding_vector_idx"
 
     try:
         await collection.create_index(
@@ -136,8 +133,66 @@ async def _create_vector_index(
         )
         logger.info(f"Created vector index '{index_name}' on {collection_name}")
     except Exception as e:
-        logger.error(f"Failed to create vector index on {collection_name}: {e}", exc_info=True)
-        raise
+        # Debug logging
+        logger.info(f"DEBUG: Caught exception in vector index creation")
+        logger.info(f"DEBUG: Exception type: {type(e).__name__}")
+        logger.info(f"DEBUG: Exception str: {str(e)}")
+        logger.info(f"DEBUG: Exception repr: {repr(e)}")
+
+        # Check if index already exists with different options (error code 85)
+        if ("'code': 85" in str(e) or "code': 85" in str(e)) or "already exists with different options" in str(e).lower():
+            if recreate:
+                logger.info(f"Vector index exists with different options. Recreating...")
+
+                # List all indexes to see what's there
+                logger.info(f"Listing all indexes on {collection_name}...")
+                indexes = await collection.list_indexes().to_list(None)
+                for idx in indexes:
+                    logger.info(f"  Found index: name='{idx.get('name')}', key={idx.get('key', {})}")
+
+                # Drop ALL non-_id indexes to ensure clean slate
+                dropped_count = 0
+                for idx in indexes:
+                    idx_name = idx.get("name")
+                    if idx_name and idx_name != "_id_":
+                        try:
+                            await collection.drop_index(idx_name)
+                            logger.info(f"Dropped index '{idx_name}' from {collection_name}")
+                            dropped_count += 1
+                        except Exception as drop_err:
+                            logger.warning(f"Failed to drop index '{idx_name}': {drop_err}")
+
+                logger.info(f"Dropped {dropped_count} indexes from {collection_name}")
+
+                # Now try to create again
+                try:
+                    await collection.create_index(
+                        [("embedding", "vector")],
+                        name=index_name,
+                        vectorOptions={
+                            "type": "hnsw",
+                            "similarity": "cosine",
+                            "dimensions": 1536,
+                            "m": 16,
+                            "efConstruction": 128,
+                        },
+                    )
+                    logger.info(f"Created vector index '{index_name}' on {collection_name} after dropping {dropped_count} old indexes")
+                except Exception as create_err:
+                    logger.error(f"Failed to create vector index after dropping all indexes: {create_err}", exc_info=True)
+                    raise
+            else:
+                logger.info(f"Vector index already exists on {collection_name} (recreate=False, skipping)")
+        # DocumentDB Elastic doesn't support vector indexes (error code 303)
+        elif "vectorOptions" in str(e) or "not supported" in str(e):
+            logger.warning(
+                f"Vector indexes not supported (DocumentDB Elastic limitation). "
+                f"Skipping vector index creation for {collection_name}. "
+                f"Vector search will use fallback implementation."
+            )
+        else:
+            logger.error(f"Failed to create vector index on {collection_name}: {e}", exc_info=True)
+            raise
 
 
 async def _create_embeddings_indexes(
@@ -185,7 +240,6 @@ async def _create_servers_indexes(
 ) -> None:
     """Create all indexes for servers collection."""
     indexes = [
-        ("_id", 1, True),
         ("server_name", 1, False),
         ("is_enabled", 1, False),
         ("version", 1, False),
@@ -222,7 +276,6 @@ async def _create_agents_indexes(
 ) -> None:
     """Create all indexes for agents collection."""
     indexes = [
-        ("_id", 1, True),
         ("name", 1, False),
         ("is_enabled", 1, False),
         ("version", 1, False),
@@ -259,7 +312,6 @@ async def _create_scopes_indexes(
 ) -> None:
     """Create all indexes for scopes collection."""
     indexes = [
-        ("_id", 1, True),
         ("name", 1, False),
     ]
 
@@ -293,7 +345,6 @@ async def _create_security_scans_indexes(
 ) -> None:
     """Create all indexes for security scans collection."""
     indexes = [
-        ("_id", 1, True),
         ("entity_path", 1, False),
         ("entity_type", 1, False),
         ("scan_status", 1, False),
@@ -329,31 +380,60 @@ async def _create_federation_config_indexes(
     recreate: bool,
 ) -> None:
     """Create all indexes for federation config collection."""
-    indexes = [
-        ("_id", 1, True),
+    # No additional indexes needed - _id is automatically indexed
+    logger.info(f"No additional indexes to create for {collection_name} (_id is auto-indexed)")
+
+
+async def _print_collection_summary(
+    db,
+    namespace: str,
+) -> None:
+    """Print summary of all collections and their indexes."""
+    logger.info("=" * 80)
+    logger.info("DOCUMENTDB COLLECTIONS AND INDEXES SUMMARY")
+    logger.info("=" * 80)
+
+    collection_names = [
+        f"{COLLECTION_SERVERS}_{namespace}",
+        f"{COLLECTION_AGENTS}_{namespace}",
+        f"{COLLECTION_SCOPES}_{namespace}",
+        f"{COLLECTION_EMBEDDINGS}_{namespace}",
+        f"{COLLECTION_SECURITY_SCANS}_{namespace}",
+        f"{COLLECTION_FEDERATION_CONFIG}_{namespace}",
     ]
 
-    for field, order, unique in indexes:
-        index_name = f"{field}_idx"
-
-        if recreate:
-            try:
-                await collection.drop_index(index_name)
-                logger.info(f"Dropped existing index '{index_name}' from {collection_name}")
-            except Exception as e:
-                logger.debug(f"No existing index '{index_name}' to drop: {e}")
-
+    for coll_name in collection_names:
         try:
-            await collection.create_index(
-                [(field, order)],
-                name=index_name,
-                unique=unique,
-            )
-            logger.info(
-                f"Created {'unique ' if unique else ''}index '{index_name}' on {collection_name}"
-            )
+            collection = db[coll_name]
+
+            # Get document count
+            count = await collection.count_documents({})
+
+            # Get indexes
+            indexes = await collection.list_indexes().to_list(None)
+
+            logger.info(f"\nCollection: {coll_name}")
+            logger.info(f"  Documents: {count}")
+            logger.info(f"  Indexes ({len(indexes)}):")
+
+            for idx in indexes:
+                idx_name = idx.get("name")
+                if "vectorOptions" in idx:
+                    vector_opts = idx["vectorOptions"]
+                    logger.info(
+                        f"    - {idx_name} (VECTOR: {vector_opts.get('type')}, "
+                        f"dims={vector_opts.get('dimensions')}, "
+                        f"similarity={vector_opts.get('similarity')})"
+                    )
+                else:
+                    keys = idx.get("key", {})
+                    unique = " UNIQUE" if idx.get("unique", False) else ""
+                    logger.info(f"    - {idx_name} on {keys}{unique}")
+
         except Exception as e:
-            logger.error(f"Failed to create index '{index_name}' on {collection_name}: {e}")
+            logger.error(f"Error getting info for {coll_name}: {e}")
+
+    logger.info("=" * 80)
 
 
 async def _initialize_collections(
@@ -377,12 +457,26 @@ async def _initialize_collections(
 
         logger.info(f"Creating indexes for collection: {collection_name}")
 
+        # Create collection first (DocumentDB Elastic requires explicit collection creation)
+        try:
+            # Check if collection exists
+            existing_collections = await db.list_collection_names()
+            if collection_name not in existing_collections:
+                logger.info(f"Creating collection: {collection_name}")
+                await db.create_collection(collection_name)
+                logger.info(f"Collection {collection_name} created successfully")
+            else:
+                logger.info(f"Collection {collection_name} already exists")
+        except Exception as e:
+            logger.warning(f"Could not create collection {collection_name}: {e}")
+
         try:
             await create_indexes_func(collection, collection_name, recreate)
             logger.info(f"Successfully created indexes for {collection_name}")
         except Exception as e:
             logger.error(f"Failed to create indexes for {collection_name}: {e}", exc_info=True)
-            raise
+            # Don't raise - continue with other collections
+            continue
 
 
 async def main():
@@ -458,7 +552,14 @@ Example usage:
     parser.add_argument(
         "--recreate",
         action="store_true",
-        help="Drop and recreate indexes if they exist",
+        default=True,
+        help="Drop and recreate indexes if they exist (default: True)",
+    )
+    parser.add_argument(
+        "--no-recreate",
+        dest="recreate",
+        action="store_false",
+        help="Do not recreate existing indexes",
     )
 
     args = parser.parse_args()
@@ -467,6 +568,7 @@ Example usage:
     logger.info(f"Host: {args.host}:{args.port}")
     logger.info(f"Database: {args.database}")
     logger.info(f"Namespace: {args.namespace}")
+    logger.info(f"Recreate indexes: {args.recreate}")
     logger.info(f"Use IAM: {args.use_iam}")
     logger.info(f"Use TLS: {args.use_tls}")
 
@@ -482,7 +584,8 @@ Example usage:
             tls_ca_file=args.tls_ca_file if args.use_tls else None,
         )
 
-        client = AsyncIOMotorClient(connection_string)
+        # IMPORTANT: DocumentDB does not support retryable writes
+        client = AsyncIOMotorClient(connection_string, retryWrites=False)
         db = client[args.database]
 
         server_info = await client.server_info()
@@ -495,6 +598,9 @@ Example usage:
         logger.info(
             f"DocumentDB initialization complete for namespace '{args.namespace}'"
         )
+
+        # Print summary of collections and indexes
+        await _print_collection_summary(db, args.namespace)
 
         client.close()
 

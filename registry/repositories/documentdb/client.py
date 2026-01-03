@@ -37,8 +37,7 @@ async def get_documentdb_client() -> AsyncIOMotorDatabase:
             f"mongodb://{credentials.access_key}:{credentials.secret_key}@"
             f"{settings.documentdb_host}:{settings.documentdb_port}/"
             f"{settings.documentdb_database}?"
-            f"tls=true&tlsCAFile={settings.documentdb_tls_ca_file}"
-            f"&authSource=$external&authMechanism=MONGODB-AWS"
+            f"authSource=$external&authMechanism=MONGODB-AWS"
         )
 
         logger.info(
@@ -52,11 +51,8 @@ async def get_documentdb_client() -> AsyncIOMotorDatabase:
             connection_string = (
                 f"mongodb://{settings.documentdb_username}:{settings.documentdb_password}@"
                 f"{settings.documentdb_host}:{settings.documentdb_port}/"
-                f"{settings.documentdb_database}?"
-                f"tls={str(settings.documentdb_use_tls).lower()}"
+                f"{settings.documentdb_database}"
             )
-            if settings.documentdb_use_tls and settings.documentdb_tls_ca_file:
-                connection_string += f"&tlsCAFile={settings.documentdb_tls_ca_file}"
 
             logger.info(
                 f"Using username/password authentication for DocumentDB "
@@ -73,8 +69,17 @@ async def get_documentdb_client() -> AsyncIOMotorDatabase:
                 f"(host: {settings.documentdb_host})"
             )
 
-    # Create client
-    _client = AsyncIOMotorClient(connection_string)
+    # Prepare TLS options
+    tls_options = {}
+    if settings.documentdb_use_tls:
+        tls_options["tls"] = True
+        if settings.documentdb_tls_ca_file:
+            tls_options["tlsCAFile"] = settings.documentdb_tls_ca_file
+            logger.info(f"Using TLS CA file: {settings.documentdb_tls_ca_file}")
+
+    # Create client with TLS options
+    # IMPORTANT: DocumentDB does not support retryable writes
+    _client = AsyncIOMotorClient(connection_string, retryWrites=False, **tls_options)
     _database = _client[settings.documentdb_database]
 
     # Verify connection

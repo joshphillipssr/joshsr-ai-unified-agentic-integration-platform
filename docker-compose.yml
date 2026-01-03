@@ -56,6 +56,46 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # MongoDB Community Edition (alternative to OpenSearch for storage + vector search)
+  mongodb:
+    image: mongo:7.0
+    container_name: mcp-mongodb
+    command: mongod --replSet rs0 --bind_ip_all
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${DOCUMENTDB_USERNAME:-admin}
+      - MONGO_INITDB_ROOT_PASSWORD=${DOCUMENTDB_PASSWORD:-admin}
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb-data:/data/db
+      - mongodb-config:/data/configdb
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  # MongoDB initialization (creates replica set and indexes)
+  mongodb-init:
+    image: mongo:7.0
+    container_name: mcp-mongodb-init
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      - DOCUMENTDB_HOST=mongodb
+      - DOCUMENTDB_PORT=27017
+      - DOCUMENTDB_USERNAME=${DOCUMENTDB_USERNAME:-admin}
+      - DOCUMENTDB_PASSWORD=${DOCUMENTDB_PASSWORD:-admin}
+      - DOCUMENTDB_DATABASE=${DOCUMENTDB_DATABASE:-mcp_registry}
+      - DOCUMENTDB_NAMESPACE=${DOCUMENTDB_NAMESPACE:-default}
+    volumes:
+      - ./scripts/init-mongodb.sh:/init-mongodb.sh:ro
+    entrypoint: ["/bin/bash", "/init-mongodb.sh"]
+    restart: "no"
+
   # Registry service (includes nginx, SSL, FAISS, models)
   registry:
     build:
@@ -105,11 +145,24 @@ services:
       - SECURITY_SCAN_TIMEOUT=${SECURITY_SCAN_TIMEOUT:-60}
       - SECURITY_ADD_PENDING_TAG=${SECURITY_ADD_PENDING_TAG:-true}
       - MCP_SCANNER_LLM_API_KEY=${MCP_SCANNER_LLM_API_KEY}
-      # OpenSearch Configuration
+      # Storage Backend Configuration
       - STORAGE_BACKEND=${STORAGE_BACKEND:-file}
+      # OpenSearch Configuration (when STORAGE_BACKEND=opensearch)
       - OPENSEARCH_HOST=opensearch
       - OPENSEARCH_PORT=9200
       - OPENSEARCH_NAMESPACE=${OPENSEARCH_NAMESPACE:-default}
+      # DocumentDB/MongoDB Configuration (when STORAGE_BACKEND=documentdb)
+      - DOCUMENTDB_HOST=${DOCUMENTDB_HOST:-mongodb}
+      - DOCUMENTDB_PORT=${DOCUMENTDB_PORT:-27017}
+      - DOCUMENTDB_USERNAME=${DOCUMENTDB_USERNAME:-admin}
+      - DOCUMENTDB_PASSWORD=${DOCUMENTDB_PASSWORD:-admin}
+      - DOCUMENTDB_DATABASE=${DOCUMENTDB_DATABASE:-mcp_registry}
+      - DOCUMENTDB_NAMESPACE=${DOCUMENTDB_NAMESPACE:-default}
+      - DOCUMENTDB_USE_TLS=${DOCUMENTDB_USE_TLS:-false}
+      - DOCUMENTDB_TLS_CA_FILE=${DOCUMENTDB_TLS_CA_FILE:-}
+      - DOCUMENTDB_USE_IAM=${DOCUMENTDB_USE_IAM:-false}
+      - DOCUMENTDB_REPLICA_SET=${DOCUMENTDB_REPLICA_SET:-rs0}
+      - DOCUMENTDB_READ_PREFERENCE=${DOCUMENTDB_READ_PREFERENCE:-secondaryPreferred}
       # Embeddings Configuration
       - EMBEDDINGS_PROVIDER=${EMBEDDINGS_PROVIDER:-sentence-transformers}
       - EMBEDDINGS_MODEL_NAME=${EMBEDDINGS_MODEL_NAME:-all-MiniLM-L6-v2}
@@ -418,3 +471,5 @@ volumes:
   prometheus-data:
   grafana-data:
   opensearch-data:
+  mongodb-data:
+  mongodb-config:

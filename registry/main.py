@@ -363,7 +363,7 @@ async def get_current_user(user_context: Dict[str, Any] = Depends(enhanced_auth)
     user_scopes = user_context.get("scopes", [])
 
     # Get UI permissions for the user based on their scopes
-    ui_permissions = get_ui_permissions_for_user(user_scopes)
+    ui_permissions = await get_ui_permissions_for_user(user_scopes)
 
     # Return user info with scopes and UI permissions for token generation
     return {
@@ -374,7 +374,10 @@ async def get_current_user(user_context: Dict[str, Any] = Depends(enhanced_auth)
         "groups": user_context.get("groups", []),
         "can_modify_servers": user_context.get("can_modify_servers", False),
         "is_admin": user_context.get("is_admin", False),
-        "ui_permissions": ui_permissions
+        "ui_permissions": ui_permissions,
+        "accessible_servers": user_context.get("accessible_servers", []),
+        "accessible_services": user_context.get("accessible_services", []),
+        "accessible_agents": user_context.get("accessible_agents", [])
     }
 
 # Basic health check endpoint

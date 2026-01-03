@@ -71,32 +71,84 @@ class DocumentDBScopeRepository(ScopeRepositoryBase):
         self,
         group_name: str,
     ) -> Dict[str, Any]:
-        """Get UI scopes for a Keycloak group."""
-        logger.debug(f"DocumentDB READ: Getting UI scopes for group '{group_name}' from cache")
-        ui_scopes = self._scopes_cache.get("UI-Scopes", {})
-        scopes = ui_scopes.get(group_name, {})
-        logger.debug(f"DocumentDB READ: Found {len(scopes)} UI scopes for group '{group_name}'")
-        return scopes
+        """Get UI scopes for a Keycloak group - queries DocumentDB directly."""
+        logger.debug(f"DocumentDB READ: Getting UI scopes for group '{group_name}' from DB")
+        collection = await self._get_collection()
+
+        try:
+            group_doc = await collection.find_one({"_id": group_name})
+            if not group_doc:
+                logger.debug(f"DocumentDB READ: Group '{group_name}' not found")
+                return {}
+
+            scopes = group_doc.get("ui_permissions", {})
+            logger.debug(f"DocumentDB READ: Found {len(scopes)} UI scopes for group '{group_name}'")
+            return scopes
+        except Exception as e:
+            logger.error(f"Error getting UI scopes for group '{group_name}': {e}", exc_info=True)
+            return {}
 
 
     async def get_group_mappings(
         self,
         keycloak_group: str,
     ) -> List[str]:
-        """Get scope names mapped to a Keycloak group."""
-        group_mappings = self._scopes_cache.get("group_mappings", {})
-        return group_mappings.get(keycloak_group, [])
+        """Get scope names mapped to a Keycloak group - queries DocumentDB directly."""
+        logger.debug(f"DocumentDB READ: Getting group mappings for '{keycloak_group}' from DB")
+        collection = await self._get_collection()
+
+        try:
+            group_doc = await collection.find_one({"_id": keycloak_group})
+            if not group_doc:
+                logger.debug(f"DocumentDB READ: Group '{keycloak_group}' not found")
+                return []
+
+            mappings = group_doc.get("group_mappings", [])
+            logger.debug(f"DocumentDB READ: Found {len(mappings)} mappings for group '{keycloak_group}'")
+            return mappings
+        except Exception as e:
+            logger.error(f"Error getting group mappings for '{keycloak_group}': {e}", exc_info=True)
+            return []
 
 
     async def get_server_scopes(
         self,
         scope_name: str,
     ) -> List[Dict[str, Any]]:
-        """Get server access rules for a scope."""
-        logger.debug(f"DocumentDB READ: Getting server access rules for scope '{scope_name}' from cache")
-        rules = self._scopes_cache.get(scope_name, [])
-        logger.debug(f"DocumentDB READ: Found {len(rules)} access rules for scope '{scope_name}'")
-        return rules
+        """Get server access rules for a scope - queries DocumentDB directly."""
+        logger.debug(f"DocumentDB READ: Getting server access rules for scope '{scope_name}' from DB")
+        collection = await self._get_collection()
+
+        try:
+            # Find the group document that contains this scope
+            group_doc = await collection.find_one({"_id": scope_name})
+            if not group_doc:
+                logger.debug(f"DocumentDB READ: Scope '{scope_name}' not found")
+                return []
+
+            # Extract server access rules from the server_access array
+            server_access = group_doc.get("server_access", [])
+
+            # Flatten the access rules from all scope entries
+            # Handle two formats:
+            # 1. New format: {"scope_name": "...", "access_rules": [...]}
+            # 2. Old/direct format: {"server": "...", "methods": [...], "tools": [...]}
+            all_rules = []
+            for scope_entry in server_access:
+                # Check if this entry has "access_rules" (new format)
+                if "access_rules" in scope_entry:
+                    access_rules = scope_entry.get("access_rules", [])
+                    all_rules.extend(access_rules)
+                # Check if this entry is a direct server access rule (old format)
+                elif "server" in scope_entry:
+                    all_rules.append(scope_entry)
+                # Skip entries that are not server access rules (e.g., agent permissions)
+
+            logger.debug(f"DocumentDB READ: Found {len(all_rules)} access rules for scope '{scope_name}'")
+            return all_rules
+        except Exception as e:
+            logger.error(f"Error getting server scopes for '{scope_name}': {e}", exc_info=True)
+            return []
 
 
     async def add_server_scope(

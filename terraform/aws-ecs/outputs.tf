@@ -143,17 +143,22 @@ output "registry_url" {
 # }
 
 #
-# DocumentDB Elastic Cluster Outputs
+# DocumentDB Cluster Outputs
 #
 
-output "documentdb_elastic_cluster_endpoint" {
-  description = "DocumentDB Elastic Cluster endpoint"
-  value       = aws_docdbelastic_cluster.registry.endpoint
+output "documentdb_cluster_endpoint" {
+  description = "DocumentDB Cluster endpoint"
+  value       = aws_docdb_cluster.registry.endpoint
 }
 
-output "documentdb_elastic_cluster_arn" {
-  description = "DocumentDB Elastic Cluster ARN"
-  value       = aws_docdbelastic_cluster.registry.arn
+output "documentdb_cluster_arn" {
+  description = "DocumentDB Cluster ARN"
+  value       = aws_docdb_cluster.registry.arn
+}
+
+output "documentdb_reader_endpoint" {
+  description = "DocumentDB Cluster reader endpoint"
+  value       = aws_docdb_cluster.registry.reader_endpoint
 }
 
 output "documentdb_security_group_id" {

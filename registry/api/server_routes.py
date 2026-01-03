@@ -3909,17 +3909,23 @@ async def get_service_tools_api(
 
 @router.get("/servers")
 async def get_servers_json(
+    request: Request,
     query: str | None = None,
     user_context: Annotated[dict, Depends(nginx_proxied_auth)] = None,
 ):
     """Get servers data as JSON for React frontend and external API (supports both session cookies and Bearer tokens)."""
+    # CRITICAL DIAGNOSTIC: Log that we reached this endpoint
+    logger.info(f"[GET_SERVERS_ENTRY] GET /api/servers called from {request.client.host if request.client else 'unknown'}")
+    logger.info(f"[GET_SERVERS_ENTRY] Request headers: {dict(request.headers)}")
+
     # CRITICAL DIAGNOSTIC: Log user_context received by endpoint
-    logger.debug(f"[GET_SERVERS_DEBUG] Received user_context: {user_context}")
-    logger.debug(f"[GET_SERVERS_DEBUG] user_context type: {type(user_context)}")
+    logger.info(f"[GET_SERVERS_DEBUG] Received user_context: {user_context}")
+    logger.info(f"[GET_SERVERS_DEBUG] user_context type: {type(user_context)}")
     if user_context:
-        logger.debug(f"[GET_SERVERS_DEBUG] Username: {user_context.get('username', 'NOT PRESENT')}")
-        logger.debug(f"[GET_SERVERS_DEBUG] Scopes: {user_context.get('scopes', 'NOT PRESENT')}")
-        logger.debug(f"[GET_SERVERS_DEBUG] Auth method: {user_context.get('auth_method', 'NOT PRESENT')}")
+        logger.info(f"[GET_SERVERS_DEBUG] Username: {user_context.get('username', 'NOT PRESENT')}")
+        logger.info(f"[GET_SERVERS_DEBUG] Scopes: {user_context.get('scopes', 'NOT PRESENT')}")
+        logger.info(f"[GET_SERVERS_DEBUG] Auth method: {user_context.get('auth_method', 'NOT PRESENT')}")
+        logger.info(f"[GET_SERVERS_DEBUG] Accessible services: {user_context.get('accessible_services', 'NOT PRESENT')}")
 
     service_data = []
     search_query = query.lower() if query else ""

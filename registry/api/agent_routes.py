@@ -15,6 +15,7 @@ from fastapi import (
     APIRouter,
     Depends,
     HTTPException,
+    Request,
     status,
     Query,
 )
@@ -416,6 +417,7 @@ async def register_agent(
 
 @router.get("/agents")
 async def list_agents(
+    request: Request,
     query: Optional[str] = Query(None, description="Search query string"),
     enabled_only: bool = Query(False, description="Show only enabled agents"),
     visibility: Optional[str] = Query(None, description="Filter by visibility"),
@@ -433,13 +435,18 @@ async def list_agents(
     Returns:
         List of agent info objects
     """
+    # CRITICAL DIAGNOSTIC: Log that we reached this endpoint
+    logger.info(f"[GET_AGENTS_ENTRY] GET /api/agents called from {request.client.host if request.client else 'unknown'}")
+    logger.info(f"[GET_AGENTS_ENTRY] Request headers: {dict(request.headers)}")
+
     # CRITICAL DIAGNOSTIC: Log user_context received by endpoint (for comparison with /servers)
-    logger.debug(f"[GET_AGENTS_DEBUG] Received user_context: {user_context}")
-    logger.debug(f"[GET_AGENTS_DEBUG] user_context type: {type(user_context)}")
+    logger.info(f"[GET_AGENTS_DEBUG] Received user_context: {user_context}")
+    logger.info(f"[GET_AGENTS_DEBUG] user_context type: {type(user_context)}")
     if user_context:
-        logger.debug(f"[GET_AGENTS_DEBUG] Username: {user_context.get('username', 'NOT PRESENT')}")
-        logger.debug(f"[GET_AGENTS_DEBUG] Scopes: {user_context.get('scopes', 'NOT PRESENT')}")
-        logger.debug(f"[GET_AGENTS_DEBUG] Auth method: {user_context.get('auth_method', 'NOT PRESENT')}")
+        logger.info(f"[GET_AGENTS_DEBUG] Username: {user_context.get('username', 'NOT PRESENT')}")
+        logger.info(f"[GET_AGENTS_DEBUG] Scopes: {user_context.get('scopes', 'NOT PRESENT')}")
+        logger.info(f"[GET_AGENTS_DEBUG] Auth method: {user_context.get('auth_method', 'NOT PRESENT')}")
+        logger.info(f"[GET_AGENTS_DEBUG] Accessible agents: {user_context.get('accessible_agents', 'NOT PRESENT')}")
 
     all_agents = await agent_service.get_all_agents()
 

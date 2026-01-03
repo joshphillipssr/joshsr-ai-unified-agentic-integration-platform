@@ -32,15 +32,17 @@ resource "aws_docdbelastic_cluster" "registry" {
   # Encryption
   kms_key_id = aws_kms_key.documentdb.arn
 
-  tags = merge(
-    local.common_tags,
-    {
-      Name        = "${var.name}-registry-docdb"
-      Component   = "documentdb"
-      Environment = "production"
-      Service     = "mcp-gateway-registry"
-    }
-  )
+  # Tags temporarily removed due to IAM permission issue
+  # Add docdb-elastic:TagResource permission to IAM role to enable tagging
+  # tags = merge(
+  #   local.common_tags,
+  #   {
+  #     Name        = "${var.name}-registry-docdb"
+  #     Component   = "documentdb"
+  #     Environment = "production"
+  #     Service     = "mcp-gateway-registry"
+  #   }
+  # )
 }
 
 #

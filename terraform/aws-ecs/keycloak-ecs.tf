@@ -230,10 +230,10 @@ resource "aws_ecs_task_definition" "keycloak" {
 
   container_definitions = jsonencode([
     {
-      name              = "keycloak"
-      image             = "${aws_ecr_repository.keycloak.repository_url}:latest"
+      name               = "keycloak"
+      image              = "${aws_ecr_repository.keycloak.repository_url}:latest"
       versionConsistency = "disabled"
-      essential         = true
+      essential          = true
 
       portMappings = [
         {

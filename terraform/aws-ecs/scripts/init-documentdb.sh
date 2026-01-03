@@ -91,44 +91,19 @@ if [ -n "$DOCUMENTDB_USERNAME" ]; then
 fi
 
 echo ""
-echo "Step 1: Creating collections and indexes..."
+echo "Running DocumentDB initialization script..."
 echo ""
 
 # Run the Python initialization script
 cd "$PARENT_DIR"
 
 if command -v uv &> /dev/null; then
-    PYTHON_CMD="uv run python"
+    uv run python scripts/init-documentdb-indexes.py "$@"
 elif command -v python3 &> /dev/null; then
-    PYTHON_CMD="python3"
+    python3 scripts/init-documentdb-indexes.py "$@"
 else
     echo "${RED}Error: Neither uv nor python3 is available${NC}"
     exit 1
-fi
-
-# Create collections and indexes
-$PYTHON_CMD scripts/init-documentdb-indexes.py "$@"
-
-echo ""
-echo "${GREEN}Collections and indexes created successfully!${NC}"
-echo ""
-
-# Load scopes if scopes.yml exists
-# Check both auth_server/scopes.yml (repository location) and config/scopes.yml (custom location)
-SCOPES_FILE="${PARENT_DIR}/auth_server/scopes.yml"
-if [ ! -f "$SCOPES_FILE" ]; then
-    SCOPES_FILE="${PARENT_DIR}/config/scopes.yml"
-fi
-
-if [ -f "$SCOPES_FILE" ]; then
-    echo "Step 2: Loading scopes from scopes.yml..."
-    echo ""
-    $PYTHON_CMD scripts/load-scopes.py --scopes-file "$SCOPES_FILE"
-    echo ""
-    echo "${GREEN}Scopes loaded successfully!${NC}"
-else
-    echo "${YELLOW}Note: scopes.yml not found at ${PARENT_DIR}/auth_server/scopes.yml or ${PARENT_DIR}/config/scopes.yml${NC}"
-    echo "${YELLOW}You can load scopes later using: python scripts/load-scopes.py --scopes-file /path/to/scopes.yml${NC}"
 fi
 
 echo ""
