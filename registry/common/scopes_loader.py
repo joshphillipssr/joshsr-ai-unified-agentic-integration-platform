@@ -182,7 +182,7 @@ async def reload_scopes_config(storage_backend: Optional[str] = None) -> Dict[st
 
     logger.info(f"Reloading scopes with storage backend: {storage_backend}")
 
-    if storage_backend == "documentdb":
+    if storage_backend in ("documentdb", "mongodb-ce"):
         return await load_scopes_from_repository()
     else:
         return load_scopes_from_yaml(os.getenv("SCOPES_CONFIG_PATH"))

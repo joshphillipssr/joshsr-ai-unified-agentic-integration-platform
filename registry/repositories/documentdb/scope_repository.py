@@ -43,23 +43,23 @@ class DocumentDBScopeRepository(ScopeRepositoryBase):
             }
 
             async for doc in cursor:
-                group_name = doc.get("_id")
-                scope_type = doc.get("scope_type", "group")
+                scope_name = doc.get("_id")
 
-                if scope_type == "group":
-                    if doc.get("ui_permissions"):
-                        self._scopes_cache["UI-Scopes"][group_name] = doc.get("ui_permissions", {})
-                    if doc.get("group_mappings"):
-                        self._scopes_cache["group_mappings"][group_name] = doc.get("group_mappings", [])
-                    if doc.get("server_access"):
-                        for scope_entry in doc.get("server_access", []):
-                            scope_name = scope_entry.get("scope_name")
-                            if scope_name:
-                                if scope_name not in self._scopes_cache:
-                                    self._scopes_cache[scope_name] = []
-                                self._scopes_cache[scope_name].extend(
-                                    scope_entry.get("access_rules", [])
-                                )
+                # UI permissions: scope_name -> ui_permissions
+                if doc.get("ui_permissions"):
+                    self._scopes_cache["UI-Scopes"][scope_name] = doc.get("ui_permissions", {})
+
+                # Group mappings: keycloak_group -> [scope_names]
+                # Build reverse mapping from scope's group_mappings list
+                for keycloak_group in doc.get("group_mappings", []):
+                    if keycloak_group not in self._scopes_cache["group_mappings"]:
+                        self._scopes_cache["group_mappings"][keycloak_group] = []
+                    if scope_name not in self._scopes_cache["group_mappings"][keycloak_group]:
+                        self._scopes_cache["group_mappings"][keycloak_group].append(scope_name)
+
+                # Scope definitions: scope_name -> [access_rules]
+                if doc.get("server_access"):
+                    self._scopes_cache[scope_name] = doc.get("server_access", [])
 
             logger.info(f"Loaded scopes from DocumentDB")
         except Exception as e:

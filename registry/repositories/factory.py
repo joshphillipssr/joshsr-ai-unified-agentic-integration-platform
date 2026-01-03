@@ -36,7 +36,7 @@ def get_server_repository() -> ServerRepositoryBase:
     backend = settings.storage_backend
     logger.info(f"Creating server repository with backend: {backend}")
 
-    if backend == "documentdb":
+    if backend in ("documentdb", "mongodb-ce"):
         from .documentdb.server_repository import DocumentDBServerRepository
         _server_repo = DocumentDBServerRepository()
     else:
@@ -56,7 +56,7 @@ def get_agent_repository() -> AgentRepositoryBase:
     backend = settings.storage_backend
     logger.info(f"Creating agent repository with backend: {backend}")
 
-    if backend == "documentdb":
+    if backend in ("documentdb", "mongodb-ce"):
         from .documentdb.agent_repository import DocumentDBAgentRepository
         _agent_repo = DocumentDBAgentRepository()
     else:
@@ -76,7 +76,7 @@ def get_scope_repository() -> ScopeRepositoryBase:
     backend = settings.storage_backend
     logger.info(f"Creating scope repository with backend: {backend}")
 
-    if backend == "documentdb":
+    if backend in ("documentdb", "mongodb-ce"):
         from .documentdb.scope_repository import DocumentDBScopeRepository
         _scope_repo = DocumentDBScopeRepository()
     else:
@@ -96,7 +96,7 @@ def get_security_scan_repository() -> SecurityScanRepositoryBase:
     backend = settings.storage_backend
     logger.info(f"Creating security scan repository with backend: {backend}")
 
-    if backend == "documentdb":
+    if backend in ("documentdb", "mongodb-ce"):
         from .documentdb.security_scan_repository import DocumentDBSecurityScanRepository
         _security_scan_repo = DocumentDBSecurityScanRepository()
     else:
@@ -116,7 +116,7 @@ def get_search_repository() -> SearchRepositoryBase:
     backend = settings.storage_backend
     logger.info(f"Creating search repository with backend: {backend}")
 
-    if backend == "documentdb":
+    if backend in ("documentdb", "mongodb-ce"):
         from .documentdb.search_repository import DocumentDBSearchRepository
         _search_repo = DocumentDBSearchRepository()
     else:
@@ -136,7 +136,7 @@ def get_federation_config_repository() -> FederationConfigRepositoryBase:
     backend = settings.storage_backend
     logger.info(f"Creating federation config repository with backend: {backend}")
 
-    if backend == "documentdb":
+    if backend in ("documentdb", "mongodb-ce"):
         from .documentdb.federation_config_repository import DocumentDBFederationConfigRepository
         _federation_config_repo = DocumentDBFederationConfigRepository()
     else:

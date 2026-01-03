@@ -237,6 +237,191 @@ class DocumentDBSearchRepository(SearchRepositoryBase):
             logger.error(f"Failed to remove entity from search index: {e}", exc_info=True)
 
 
+    async def _client_side_search(
+        self,
+        query: str,
+        query_embedding: List[float],
+        entity_types: Optional[List[str]] = None,
+        max_results: int = 10,
+    ) -> Dict[str, List[Dict[str, Any]]]:
+        """Fallback search using client-side cosine similarity for MongoDB CE.
+
+        This method is used when MongoDB doesn't support native vector search.
+        It fetches all embeddings from the database and computes similarity locally.
+        """
+        collection = await self._get_collection()
+
+        try:
+            # Build query filter
+            query_filter = {}
+            if entity_types:
+                query_filter["entity_type"] = {"$in": entity_types}
+
+            # Fetch all embeddings from MongoDB
+            cursor = collection.find(query_filter, {
+                "_id": 1,
+                "path": 1,
+                "entity_type": 1,
+                "name": 1,
+                "description": 1,
+                "tags": 1,
+                "tools": 1,
+                "metadata": 1,
+                "is_enabled": 1,
+                "embedding": 1
+            })
+
+            all_docs = await cursor.to_list(length=None)
+            logger.info(f"Client-side search: Retrieved {len(all_docs)} documents with embeddings")
+
+            # Calculate cosine similarity for each document
+            scored_docs = []
+            for doc in all_docs:
+                embedding = doc.get("embedding", [])
+                if not embedding:
+                    continue
+
+                # Calculate vector similarity
+                vector_score = self._calculate_cosine_similarity(query_embedding, embedding)
+
+                # Add text-based boost (same logic as server-side search)
+                text_boost = 0.0
+                name = doc.get("name", "")
+                description = doc.get("description", "")
+                tags = doc.get("tags", [])
+                tools = doc.get("tools", [])
+                query_lower = query.lower()
+                matching_tools = []
+
+                # Case-insensitive substring matching for text boost
+                if name and query_lower in name.lower():
+                    text_boost += 3.0
+                if description and query_lower in description.lower():
+                    text_boost += 2.0
+                # Check if query matches any tag
+                if tags and any(query_lower in tag.lower() for tag in tags):
+                    text_boost += 1.5
+                # Check if query matches any tool name or description
+                for tool in tools:
+                    tool_name = tool.get("name", "")
+                    tool_desc = tool.get("description") or ""
+                    if (tool_name and query_lower in tool_name.lower()) or \
+                       (tool_desc and query_lower in tool_desc.lower()):
+                        text_boost += 1.0
+                        # Store full tool object for frontend
+                        matching_tools.append({
+                            "tool_name": tool_name,
+                            "description": tool_desc,
+                            "relevance_score": 1.0,  # Tool matched, full score
+                            "match_context": tool_desc or f"Tool: {tool_name}"
+                        })
+
+                # Store matching tools for later use
+                doc["_matching_tools"] = matching_tools
+
+                # Hybrid score: vector score + normalized text boost
+                # Normalize vector_score to [0, 1] range (cosine can be [-1, 1])
+                normalized_vector_score = (vector_score + 1.0) / 2.0
+                relevance_score = normalized_vector_score + (text_boost * 0.03)
+                relevance_score = max(0.0, min(1.0, relevance_score))
+
+                scored_docs.append({
+                    "doc": doc,
+                    "relevance_score": relevance_score,
+                    "vector_score": vector_score,
+                    "text_boost": text_boost
+                })
+
+            # Sort by relevance score (descending)
+            scored_docs.sort(key=lambda x: x["relevance_score"], reverse=True)
+
+            # Separate by entity type and take top 3 of each
+            servers = []
+            agents = []
+            tools = []
+
+            for item in scored_docs:
+                doc = item["doc"]
+                entity_type = doc.get("entity_type")
+
+                if entity_type == "mcp_server" and len(servers) < 3:
+                    servers.append(item)
+                elif entity_type == "a2a_agent" and len(agents) < 3:
+                    agents.append(item)
+                elif entity_type == "mcp_tool" and len(tools) < 3:
+                    tools.append(item)
+
+            # Format results to match the API contract
+            grouped_results = {"servers": [], "tools": [], "agents": []}
+
+            for item in servers:
+                doc = item["doc"]
+                relevance_score = item["relevance_score"]
+
+                result_entry = {
+                    "entity_type": "mcp_server",
+                    "path": doc.get("path"),
+                    "server_name": doc.get("name"),
+                    "description": doc.get("description"),
+                    "tags": doc.get("tags", []),
+                    "num_tools": doc.get("metadata", {}).get("num_tools", 0),
+                    "is_enabled": doc.get("is_enabled", False),
+                    "relevance_score": relevance_score,
+                    "match_context": doc.get("description"),
+                    "matching_tools": doc.get("_matching_tools", [])
+                }
+                grouped_results["servers"].append(result_entry)
+
+            for item in agents:
+                doc = item["doc"]
+                relevance_score = item["relevance_score"]
+                metadata = doc.get("metadata", {})
+
+                result_entry = {
+                    "entity_type": "a2a_agent",
+                    "path": doc.get("path"),
+                    "agent_name": doc.get("name"),
+                    "description": doc.get("description"),
+                    "tags": doc.get("tags", []),
+                    "skills": metadata.get("skills", []),
+                    "visibility": metadata.get("visibility", "public"),
+                    "trust_level": metadata.get("trust_level"),
+                    "is_enabled": doc.get("is_enabled", False),
+                    "relevance_score": relevance_score,
+                    "match_context": doc.get("description"),
+                    "agent_card": metadata.get("agent_card", {})
+                }
+                grouped_results["agents"].append(result_entry)
+
+            for item in tools:
+                doc = item["doc"]
+                relevance_score = item["relevance_score"]
+
+                result_entry = {
+                    "entity_type": "mcp_tool",
+                    "path": doc.get("path"),
+                    "tool_name": doc.get("name"),
+                    "description": doc.get("description"),
+                    "relevance_score": relevance_score,
+                    "match_context": doc.get("description")
+                }
+                grouped_results["tools"].append(result_entry)
+
+            logger.info(
+                f"Client-side search returned "
+                f"{len(grouped_results['servers'])} servers, "
+                f"{len(grouped_results['tools'])} tools, "
+                f"{len(grouped_results['agents'])} agents "
+                f"from {len(all_docs)} total documents (top 3 per type)"
+            )
+
+            return grouped_results
+
+        except Exception as e:
+            logger.error(f"Failed to perform client-side search: {e}", exc_info=True)
+            return {"servers": [], "tools": [], "agents": []}
+
+
     async def search(
         self,
         query: str,
@@ -275,11 +460,12 @@ class DocumentDBSearchRepository(SearchRepositoryBase):
                 pipeline.append({"$match": {"entity_type": {"$in": entity_types}}})
 
             # Add text-based scoring for re-ranking
-            # Higher scores for matches in name (3.0) and description (2.0)
+            # Higher scores for matches in name (3.0), description (2.0), tags (1.5), tools (1.0 per match)
             pipeline.append({
                 "$addFields": {
                     "text_boost": {
                         "$add": [
+                            # Name match: 3.0
                             {
                                 "$cond": [
                                     {
@@ -293,6 +479,7 @@ class DocumentDBSearchRepository(SearchRepositoryBase):
                                     0.0
                                 ]
                             },
+                            # Description match: 2.0
                             {
                                 "$cond": [
                                     {
@@ -305,8 +492,104 @@ class DocumentDBSearchRepository(SearchRepositoryBase):
                                     2.0,
                                     0.0
                                 ]
+                            },
+                            # Tags match: 1.5 if any tag matches
+                            {
+                                "$cond": [
+                                    {
+                                        "$gt": [
+                                            {
+                                                "$size": {
+                                                    "$filter": {
+                                                        "input": {"$ifNull": ["$tags", []]},
+                                                        "as": "tag",
+                                                        "cond": {
+                                                            "$regexMatch": {
+                                                                "input": "$$tag",
+                                                                "regex": query,
+                                                                "options": "i"
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            },
+                                            0
+                                        ]
+                                    },
+                                    1.5,
+                                    0.0
+                                ]
+                            },
+                            # Tools match: 1.0 per matching tool (check name and description)
+                            {
+                                "$size": {
+                                    "$filter": {
+                                        "input": {"$ifNull": ["$tools", []]},
+                                        "as": "tool",
+                                        "cond": {
+                                            "$or": [
+                                                {
+                                                    "$regexMatch": {
+                                                        "input": {"$ifNull": ["$$tool.name", ""]},
+                                                        "regex": query,
+                                                        "options": "i"
+                                                    }
+                                                },
+                                                {
+                                                    "$regexMatch": {
+                                                        "input": {"$ifNull": ["$$tool.description", ""]},
+                                                        "regex": query,
+                                                        "options": "i"
+                                                    }
+                                                }
+                                            ]
+                                        }
+                                    }
+                                }
                             }
                         ]
+                    },
+                    # Also track matching tools for display
+                    "matching_tools": {
+                        "$map": {
+                            "input": {
+                                "$filter": {
+                                    "input": {"$ifNull": ["$tools", []]},
+                                    "as": "tool",
+                                    "cond": {
+                                        "$or": [
+                                            {
+                                                "$regexMatch": {
+                                                    "input": {"$ifNull": ["$$tool.name", ""]},
+                                                    "regex": query,
+                                                    "options": "i"
+                                                }
+                                            },
+                                            {
+                                                "$regexMatch": {
+                                                    "input": {"$ifNull": ["$$tool.description", ""]},
+                                                    "regex": query,
+                                                    "options": "i"
+                                                }
+                                            }
+                                        ]
+                                    }
+                                }
+                            },
+                            "as": "tool",
+                            "in": {
+                                "tool_name": "$$tool.name",
+                                "description": {"$ifNull": ["$$tool.description", ""]},
+                                "relevance_score": 1.0,
+                                "match_context": {
+                                    "$cond": [
+                                        {"$ne": ["$$tool.description", None]},
+                                        "$$tool.description",
+                                        {"$concat": ["Tool: ", "$$tool.name"]}
+                                    ]
+                                }
+                            }
+                        }
                     }
                 }
             })
@@ -322,9 +605,22 @@ class DocumentDBSearchRepository(SearchRepositoryBase):
 
             # Return results with keys matching the API contract (same as FAISS service)
             # Calculate cosine similarity scores manually since DocumentDB doesn't expose them
+            # Limit to top 3 per entity type
             grouped_results = {"servers": [], "tools": [], "agents": []}
+            server_count = 0
+            agent_count = 0
+            tool_count = 0
+
             for doc in results:
                 entity_type = doc.get("entity_type")
+
+                # Skip if we already have 3 of this type
+                if entity_type == "mcp_server" and server_count >= 3:
+                    continue
+                elif entity_type == "a2a_agent" and agent_count >= 3:
+                    continue
+                elif entity_type == "mcp_tool" and tool_count >= 3:
+                    continue
 
                 # Calculate actual cosine similarity from embeddings
                 doc_embedding = doc.get("embedding", [])
@@ -335,9 +631,11 @@ class DocumentDBSearchRepository(SearchRepositoryBase):
 
                 # Hybrid score: Keep DocumentDB's vector ranking but show the actual similarity
                 # Text boost adds a small bonus if there are keyword matches
-                # Vector score is 0-1, text_boost is 0-5, so normalize text_boost to 0-0.15 range
-                relevance_score = vector_score + (text_boost * 0.03)
-                relevance_score = min(1.0, relevance_score)  # Cap at 1.0
+                # Vector score is 0-1, text_boost can be 0-6.5 (3+2+1.5 max), so normalize text_boost to 0-0.195 range
+                # Normalize vector_score to [0, 1] range (cosine can be [-1, 1])
+                normalized_vector_score = (vector_score + 1.0) / 2.0
+                relevance_score = normalized_vector_score + (text_boost * 0.03)
+                relevance_score = max(0.0, min(1.0, relevance_score))  # Clamp to [0, 1]
 
                 if entity_type == "mcp_server":
                     result_entry = {
@@ -350,9 +648,10 @@ class DocumentDBSearchRepository(SearchRepositoryBase):
                         "is_enabled": doc.get("is_enabled", False),
                         "relevance_score": relevance_score,
                         "match_context": doc.get("description"),
-                        "matching_tools": []
+                        "matching_tools": doc.get("matching_tools", [])
                     }
                     grouped_results["servers"].append(result_entry)
+                    server_count += 1
 
                 elif entity_type == "a2a_agent":
                     metadata = doc.get("metadata", {})
@@ -371,15 +670,42 @@ class DocumentDBSearchRepository(SearchRepositoryBase):
                         "agent_card": metadata.get("agent_card", {})
                     }
                     grouped_results["agents"].append(result_entry)
+                    agent_count += 1
+
+                elif entity_type == "mcp_tool":
+                    result_entry = {
+                        "entity_type": "mcp_tool",
+                        "path": doc.get("path"),
+                        "tool_name": doc.get("name"),
+                        "description": doc.get("description"),
+                        "relevance_score": relevance_score,
+                        "match_context": doc.get("description")
+                    }
+                    grouped_results["tools"].append(result_entry)
+                    tool_count += 1
 
             logger.info(
                 f"Hybrid search for '{query}' returned "
                 f"{len(grouped_results['servers'])} servers, "
-                f"{len(grouped_results['agents'])} agents"
+                f"{len(grouped_results['tools'])} tools, "
+                f"{len(grouped_results['agents'])} agents (top 3 per type)"
             )
 
             return grouped_results
 
         except Exception as e:
+            # Check if this is MongoDB CE without vector search support
+            from pymongo.errors import OperationFailure
+
+            if isinstance(e, OperationFailure) and e.code == 31082:
+                # MongoDB CE doesn't support $vectorSearch - fall back to client-side search
+                logger.warning(
+                    "Vector search not supported (MongoDB CE detected). "
+                    "Falling back to client-side cosine similarity search."
+                )
+                return await self._client_side_search(
+                    query, query_embedding, entity_types, max_results
+                )
+
             logger.error(f"Failed to perform hybrid search: {e}", exc_info=True)
             return {"servers": [], "tools": [], "agents": []}

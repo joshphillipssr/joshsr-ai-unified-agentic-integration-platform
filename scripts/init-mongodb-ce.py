@@ -112,14 +112,14 @@ async def _create_standard_indexes(
     full_name = f"{collection_name}_{namespace}"
 
     if collection_name == COLLECTION_SERVERS:
-        await collection.create_index([("path", ASCENDING)], unique=True)
+        # Note: path is stored as _id, so no separate path index needed
         await collection.create_index([("enabled", ASCENDING)])
         await collection.create_index([("tags", ASCENDING)])
         await collection.create_index([("manifest.serverInfo.name", ASCENDING)])
         logger.info(f"Created indexes for {full_name}")
 
     elif collection_name == COLLECTION_AGENTS:
-        await collection.create_index([("path", ASCENDING)], unique=True)
+        # Note: path is stored as _id, so no separate path index needed
         await collection.create_index([("enabled", ASCENDING)])
         await collection.create_index([("tags", ASCENDING)])
         await collection.create_index([("card.name", ASCENDING)])
@@ -131,7 +131,7 @@ async def _create_standard_indexes(
         logger.info(f"Created indexes for {full_name}")
 
     elif collection_name == COLLECTION_EMBEDDINGS:
-        await collection.create_index([("path", ASCENDING)], unique=True)
+        # Note: path is stored as _id, so no separate path index needed
         await collection.create_index([("entity_type", ASCENDING)])
         logger.info(f"Created indexes for {full_name} (vector search via app code)")
 
