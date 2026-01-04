@@ -9,7 +9,9 @@ This guide provides a comprehensive, step-by-step walkthrough for setting up the
 4. [Cloning and Configuring the Project](#4-cloning-and-configuring-the-project)
 5. [Setting Up Keycloak Identity Provider](#5-setting-up-keycloak-identity-provider)
 6. [Starting the MCP Gateway Services](#6-starting-the-mcp-gateway-services)
-7. [OpenSearch Setup (Optional - Local Installation Only)](#7-opensearch-setup-optional---local-installation-only)
+7. [Storage Backend Setup (Optional)](#7-storage-backend-setup-optional)
+   - [MongoDB CE Setup](#mongodb-ce-setup-local-development)
+   - [OpenSearch Setup](#opensearch-setup-local-installation-only)
 8. [Verification and Testing](#8-verification-and-testing)
 9. [Configuring AI Agents and Coding Assistants](#9-configuring-ai-agents-and-coding-assistants)
 10. [Troubleshooting](#10-troubleshooting)
@@ -593,7 +595,72 @@ curl http://localhost:7860/health
 
 ---
 
-## 7. OpenSearch Setup (Optional - Local Installation Only)
+## 7. Storage Backend Setup (Optional)
+
+The MCP Gateway Registry supports multiple storage backends for production and development use. By default, the file-based backend is used, which requires no additional setup. This section covers optional backend configurations.
+
+### MongoDB CE Setup (Local Development)
+
+**Note**: This section is for local Docker Compose installations using MongoDB Community Edition 8.2 for development and testing. For AWS ECS deployments, DocumentDB is used and initialized automatically.
+
+MongoDB CE provides a production-like environment for local development with replica set support and application-level vector search capabilities.
+
+**When to use MongoDB CE:**
+- Local development needing database features
+- Testing production workflows locally
+- Multi-instance development environments
+- Feature development requiring database operations
+
+**Setup MongoDB CE:**
+
+```bash
+# 1. Set storage backend in .env
+echo "STORAGE_BACKEND=mongodb-ce" >> .env
+echo "DOCUMENTDB_HOST=mongodb" >> .env
+echo "DOCUMENTDB_PORT=27017" >> .env
+echo "DOCUMENTDB_DATABASE=mcp_registry" >> .env
+echo "DOCUMENTDB_NAMESPACE=default" >> .env
+echo "DOCUMENTDB_USE_TLS=false" >> .env
+
+# 2. Start MongoDB container
+docker compose up -d mongodb
+
+# 3. Wait for MongoDB to be ready (about 30 seconds for replica set initialization)
+sleep 30
+
+# 4. Initialize collections and indexes
+docker compose up mongodb-init
+
+# 5. Verify MongoDB setup
+docker exec mcp-mongodb mongosh --eval "use mcp_registry; show collections"
+
+# Expected output should show:
+# - mcp_servers_default
+# - mcp_agents_default
+# - mcp_scopes_default
+# - mcp_embeddings_1536_default
+# - mcp_security_scans_default
+# - mcp_federation_config_default
+
+# 6. Restart registry to use MongoDB backend
+docker compose restart registry
+```
+
+**MongoDB CE Features:**
+- Replica set configuration for production-like testing
+- Automatic collection and index management
+- Application-level vector search for semantic queries
+- Multi-namespace support for tenant isolation
+- Compatible with DocumentDB API for seamless cloud migration
+
+For detailed MongoDB CE architecture and configuration options, see [Storage Architecture Documentation](design/storage-architecture-mongodb-documentdb.md).
+
+**When to skip MongoDB CE setup:**
+- Using file-based storage backend (default)
+- Deploying to AWS ECS/EKS (uses DocumentDB automatically)
+- Simple development workflows not requiring database features
+
+### OpenSearch Setup (Local Installation Only)
 
 **Note**: This section is ONLY for local Docker Compose installations. For AWS ECS/EKS deployments, OpenSearch initialization is handled automatically by the infrastructure scripts.
 
@@ -609,7 +676,7 @@ uv run python scripts/import-scopes-to-opensearch.py
 
 For detailed information about OpenSearch setup, data migration, and troubleshooting, see [OpenSearch Import Guide](../scripts/README-OPENSEARCH-IMPORT.md).
 
-**When to skip this section:**
+**When to skip OpenSearch setup:**
 - Using file-based storage backend (default)
 - Deploying to AWS ECS/EKS (automated setup)
 - Not using OpenSearch features
