@@ -45,17 +45,17 @@ The infrastructure is deployed within a dedicated VPC spanning two availability 
 
 The infrastructure runs on an ECS cluster with Fargate launch type, eliminating server management. Three primary service types run as containerized tasks:
 
-**Registry Tasks** provide the core MCP server registry and discovery service. An auto-scaling group manages task count based on CPU and memory utilization, with tasks deployed across both availability zones for high availability. The registry retrieves secrets from AWS Secrets Manager for secure credential management, writes logs to CloudWatch Logs for centralized monitoring, and stores server metadata in Amazon EFS for persistent, shared access.
+**Registry Tasks** provide the core MCP server registry and discovery service. An auto-scaling group manages task count based on CPU and memory utilization, with tasks deployed across both availability zones for high availability. The registry retrieves secrets from AWS Secrets Manager for secure credential management, writes logs to CloudWatch Logs for centralized monitoring, and stores server metadata in DocumentDB for persistent, distributed access with native vector search capabilities.
 
 **Auth Server Tasks** handle OAuth2/OIDC authentication and authorization for the entire platform. These tasks manage user sessions and token validation, integrate with Keycloak for identity federation, and auto-scale based on demand. User data and session information is stored in Aurora PostgreSQL Serverless for reliable, scalable persistence.
 
-**Keycloak Tasks** serve as the identity and access management layer, providing user authentication, single sign-on (SSO), and an admin console for user management. Keycloak connects to Aurora PostgreSQL for data persistence and stores configuration files in Amazon EFS for shared access across multiple task instances.
+**Keycloak Tasks** serve as the identity and access management layer, providing user authentication, single sign-on (SSO), and an admin console for user management. Keycloak connects to Aurora PostgreSQL for data persistence, providing reliable session management and user credential storage.
 
 ### Data Layer
 
 **Amazon Aurora PostgreSQL Serverless v2** provides a fully managed, auto-scaling database with capacity ranging from 0.5 to 2 ACUs based on workload demands. The database stores user credentials, session data, and application state with automatic backups and point-in-time recovery capabilities. Deployed in a multi-AZ configuration for high availability, Aurora uses RDS Proxy for efficient connection pooling and management across ECS tasks.
 
-**Amazon EFS (Elastic File System)** serves as shared persistent storage accessible from all ECS tasks across availability zones. EFS stores Keycloak configuration files, server metadata, and registry information that needs to be shared between multiple container instances. The file system automatically scales capacity and throughput based on storage requirements while maintaining high availability across multiple availability zones.
+**Amazon DocumentDB** (MongoDB-compatible) serves as the primary data store for the MCP Gateway Registry. DocumentDB provides distributed, scalable storage for server metadata, agent registrations, scopes, and security scan results. With native HNSW vector search support, DocumentDB enables sub-100ms semantic queries for server and agent discovery. The cluster automatically scales storage and replicates data across multiple availability zones for high availability and durability.
 
 ### Observability
 
@@ -362,7 +362,7 @@ export INITIAL_ADMIN_PASSWORD="YourSecureRealmAdminPassword"  # Password for 'ad
 3. Waits for DNS propagation (up to 10 minutes)
 4. Verifies ECS services are running and healthy
 5. Initializes Keycloak (realm, clients, users, groups, scopes)
-6. Initializes MCP scopes on EFS
+6. Initializes DocumentDB collections, indexes, and MCP scopes
 7. Restarts registry and auth services to pick up new configuration
 8. Verifies all endpoints are responding
 
@@ -393,8 +393,8 @@ Step 4: Verifying ECS Services
 Step 5: Initializing Keycloak
 [SUCCESS] Keycloak initialized successfully!
 
-Step 6: Initializing MCP Scopes on EFS
-[SUCCESS] MCP scopes initialized on EFS!
+Step 6: Initializing DocumentDB
+[SUCCESS] DocumentDB collections and scopes initialized!
 
 Step 7: Restarting Registry and Auth Services
 [SUCCESS] All services restarted successfully!
@@ -727,12 +727,12 @@ terraform state show aws_ecs_service.registry
 | Resource | Configuration | Estimated Cost |
 |----------|--------------|----------------|
 | RDS Aurora Serverless v2 | 0.5-2 ACU, PostgreSQL | $40-100/month |
+| DocumentDB | 1 instance, db.t3.medium | $60-80/month |
 | ECS Fargate Tasks | 3 services, 0.25 vCPU, 0.5GB each | $20-50/month |
 | Application Load Balancers | 2 ALBs | $32-50/month |
-| EFS | 5GB storage | $1.50/month |
 | CloudWatch Logs | 10GB/month | $5/month |
 | Data Transfer | 100GB/month | $9/month |
-| **Total** | | **~$110-250/month** |
+| **Total** | | **~$170-330/month** |
 
 ### Cost Reduction Strategies
 
@@ -795,12 +795,12 @@ For running Terraform and the deployment scripts, your IAM user or role needs th
         "ec2:*",
         "ecs:*",
         "rds:*",
+        "docdb:*",
         "elasticloadbalancing:*",
         "route53:*",
         "acm:*",
         "iam:*",
         "logs:*",
-        "elasticfilesystem:*",
         "ecr:*",
         "application-autoscaling:*",
         "cloudwatch:*",
@@ -869,10 +869,19 @@ aws rds describe-db-cluster-snapshots \
 # Restore from snapshot (requires terraform changes)
 ```
 
-### EFS Backup
+### DocumentDB Backup
 ```bash
-# EFS backup to AWS Backup (configure in AWS Backup console)
-# Or use EFS-to-EFS replication for cross-region DR
+# DocumentDB automated backups are enabled by default (7 day retention)
+# Create manual snapshot
+aws docdb create-db-cluster-snapshot \
+  --db-cluster-identifier mcp-gateway-documentdb-cluster \
+  --db-cluster-snapshot-identifier manual-backup-$(date +%Y%m%d) \
+  --region $AWS_REGION
+
+# List snapshots
+aws docdb describe-db-cluster-snapshots \
+  --db-cluster-identifier mcp-gateway-documentdb-cluster \
+  --region $AWS_REGION
 ```
 
 ### Terraform State Backup
@@ -1067,7 +1076,7 @@ terraform/aws-ecs/
 ├── auth-*.tf                          # Auth server resources
 ├── network.tf                         # VPC, subnets, security groups
 ├── database.tf                        # RDS Aurora configuration
-├── efs.tf                             # Elastic File System
+├── documentdb.tf                      # DocumentDB cluster configuration
 ├── img/
 │   └── architecture-ecs.png           # Architecture diagram
 └── scripts/
