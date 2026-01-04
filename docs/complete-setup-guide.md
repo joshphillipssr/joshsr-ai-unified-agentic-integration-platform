@@ -594,7 +594,7 @@ curl http://localhost:7860/health
 
 ---
 
-## 7. Storage Backend Setup (Optional)
+## 7. Storage Backend Setup
 
 The MCP Gateway Registry supports multiple storage backends for production and development use.
 
