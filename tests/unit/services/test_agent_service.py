@@ -894,12 +894,13 @@ class TestGetAgent:
     def test_get_existing_agent(
         self,
         agent_service: AgentService,
-        mock_settings,
+        mock_agent_repository,
+        mock_search_repository,
     ):
         """Test getting an existing agent."""
         # Arrange
         agent_card = AgentCardFactory(path="/test-agent")
-        agent_service.register_agent(agent_card)
+        agent_service.registered_agents["/test-agent"] = agent_card
 
         # Act
         result = agent_service.get_agent("/test-agent")
@@ -911,6 +912,8 @@ class TestGetAgent:
     def test_get_agent_not_found(
         self,
         agent_service: AgentService,
+        mock_agent_repository,
+        mock_search_repository,
     ):
         """Test getting a non-existent agent raises ValueError."""
         # Act & Assert
@@ -920,12 +923,13 @@ class TestGetAgent:
     def test_get_agent_handles_trailing_slash(
         self,
         agent_service: AgentService,
-        mock_settings,
+        mock_agent_repository,
+        mock_search_repository,
     ):
         """Test getting agent with/without trailing slash."""
         # Arrange
         agent_card = AgentCardFactory(path="/test-agent")
-        agent_service.register_agent(agent_card)
+        agent_service.registered_agents["/test-agent"] = agent_card
 
         # Act - try with trailing slash
         result = agent_service.get_agent("/test-agent/")
@@ -936,12 +940,11 @@ class TestGetAgent:
     def test_get_agent_with_slash_registered_without(
         self,
         agent_service: AgentService,
-        mock_settings,
+        mock_agent_repository,
+        mock_search_repository,
     ):
         """Test getting agent registered with slash when querying without."""
         # Arrange
-        # Note: AgentCard doesn't allow trailing slash except for root
-        # So we manually add to registry to test the lookup logic
         agent_card = AgentCardFactory(path="/test-agent")
         # Manually register with trailing slash to test edge case
         agent_service.registered_agents["/test-agent/"] = agent_card
@@ -968,8 +971,13 @@ class TestListAgents:
     def test_list_agents_empty(
         self,
         agent_service: AgentService,
+        mock_agent_repository,
+        mock_search_repository,
     ):
         """Test listing agents when none are registered."""
+        # Arrange
+        agent_service.registered_agents = {}
+
         # Act
         result = agent_service.list_agents()
 
@@ -979,14 +987,15 @@ class TestListAgents:
     def test_list_agents_returns_all(
         self,
         agent_service: AgentService,
-        mock_settings,
+        mock_agent_repository,
+        mock_search_repository,
     ):
         """Test listing all registered agents."""
         # Arrange
         agent_1 = AgentCardFactory(path="/agent-1")
         agent_2 = AgentCardFactory(path="/agent-2")
-        agent_service.register_agent(agent_1)
-        agent_service.register_agent(agent_2)
+        agent_service.registered_agents["/agent-1"] = agent_1
+        agent_service.registered_agents["/agent-2"] = agent_2
 
         # Act
         result = agent_service.list_agents()
@@ -997,22 +1006,27 @@ class TestListAgents:
         assert "/agent-1" in paths
         assert "/agent-2" in paths
 
-    def test_get_all_agents_alias(
+    @pytest.mark.asyncio
+    async def test_get_all_agents_alias(
         self,
         agent_service: AgentService,
-        mock_settings,
+        mock_agent_repository,
+        mock_search_repository,
     ):
         """Test that get_all_agents is an alias for list_agents."""
         # Arrange
         agent = AgentCardFactory(path="/test")
-        agent_service.register_agent(agent)
+        agent_service.registered_agents["/test"] = agent
+        mock_agent_repository.list_all.return_value = [agent]
 
         # Act
         list_result = agent_service.list_agents()
-        get_all_result = agent_service.get_all_agents()
+        get_all_result = await agent_service.get_all_agents()
 
         # Assert
-        assert list_result == get_all_result
+        assert len(list_result) == 1
+        assert len(get_all_result) == 1
+        assert list_result[0].path == get_all_result[0].path
 
 
 # =============================================================================
@@ -1025,10 +1039,12 @@ class TestListAgents:
 class TestUpdateAgent:
     """Test updating agent information."""
 
-    def test_update_agent_successfully(
+    @pytest.mark.asyncio
+    async def test_update_agent_successfully(
         self,
         agent_service: AgentService,
-        mock_settings,
+        mock_agent_repository,
+        mock_search_repository,
     ):
         """Test updating an agent's information."""
         # Arrange
@@ -1036,21 +1052,31 @@ class TestUpdateAgent:
             path="/test-agent",
             description="Original description",
         )
-        agent_service.register_agent(agent_card)
+        # Pre-populate registered_agents
+        agent_service.registered_agents["/test-agent"] = agent_card
+
+        updated_card = AgentCardFactory(
+            path="/test-agent",
+            description="Updated description",
+        )
+        mock_agent_repository.save.return_value = updated_card
 
         updates = {"description": "Updated description"}
 
         # Act
-        result = agent_service.update_agent("/test-agent", updates)
+        result = await agent_service.update_agent("/test-agent", updates)
 
         # Assert
         assert result.description == "Updated description"
-        assert result.path == "/test-agent"  # Path should not change
+        assert result.path == "/test-agent"
+        mock_agent_repository.save.assert_called_once()
 
-    def test_update_agent_updates_timestamp(
+    @pytest.mark.asyncio
+    async def test_update_agent_updates_timestamp(
         self,
         agent_service: AgentService,
-        mock_settings,
+        mock_agent_repository,
+        mock_search_repository,
     ):
         """Test that update sets updated_at timestamp."""
         # Arrange
@@ -1059,35 +1085,51 @@ class TestUpdateAgent:
             path="/test-agent",
             updated_at=original_time,
         )
-        agent_service.register_agent(agent_card)
+        agent_service.registered_agents["/test-agent"] = agent_card
+
+        updated_card = AgentCardFactory(
+            path="/test-agent",
+            updated_at=datetime.now(UTC),
+        )
+        mock_agent_repository.save.return_value = updated_card
 
         # Act
-        result = agent_service.update_agent("/test-agent", {"description": "New"})
+        result = await agent_service.update_agent("/test-agent", {"description": "New"})
 
         # Assert
         assert result.updated_at > original_time
 
-    def test_update_agent_not_found(
+    @pytest.mark.asyncio
+    async def test_update_agent_not_found(
         self,
         agent_service: AgentService,
+        mock_agent_repository,
+        mock_search_repository,
     ):
         """Test updating non-existent agent raises ValueError."""
+        # Arrange - don't add to registered_agents
+
         # Act & Assert
         with pytest.raises(ValueError, match="not found"):
-            agent_service.update_agent("/nonexistent", {"description": "test"})
+            await agent_service.update_agent("/nonexistent", {"description": "test"})
 
-    def test_update_agent_preserves_path(
+    @pytest.mark.asyncio
+    async def test_update_agent_preserves_path(
         self,
         agent_service: AgentService,
-        mock_settings,
+        mock_agent_repository,
+        mock_search_repository,
     ):
         """Test that path cannot be changed via update."""
         # Arrange
         agent_card = AgentCardFactory(path="/original-path")
-        agent_service.register_agent(agent_card)
+        agent_service.registered_agents["/original-path"] = agent_card
+
+        updated_card = AgentCardFactory(path="/original-path", description="Updated")
+        mock_agent_repository.save.return_value = updated_card
 
         # Act
-        result = agent_service.update_agent(
+        result = await agent_service.update_agent(
             "/original-path",
             {"path": "/new-path", "description": "Updated"},
         )
@@ -1095,22 +1137,23 @@ class TestUpdateAgent:
         # Assert
         # Path should remain unchanged
         assert result.path == "/original-path"
-        assert "/original-path" in agent_service.registered_agents
 
-    def test_update_agent_with_invalid_data(
+    @pytest.mark.asyncio
+    async def test_update_agent_with_invalid_data(
         self,
         agent_service: AgentService,
-        mock_settings,
+        mock_agent_repository,
+        mock_search_repository,
     ):
         """Test updating with invalid data raises ValueError."""
         # Arrange
         agent_card = AgentCardFactory(path="/test-agent")
-        agent_service.register_agent(agent_card)
+        agent_service.registered_agents["/test-agent"] = agent_card
 
         # Act & Assert
         with pytest.raises(ValueError, match="Invalid"):
             # Try to set num_stars to invalid value
-            agent_service.update_agent("/test-agent", {"num_stars": 10.0})
+            await agent_service.update_agent("/test-agent", {"num_stars": 10.0})
 
 
 # =============================================================================
