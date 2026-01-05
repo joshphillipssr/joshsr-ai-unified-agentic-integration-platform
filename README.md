@@ -358,10 +358,13 @@ flowchart TB
 - Dual authentication supporting both human and machine authentication
 
 ---
-
 ## Quick Start
 
-> **📱 Running on macOS?** See our [macOS Setup Guide](docs/macos-setup-guide.md) for platform-specific instructions and optimizations.
+There are 3 options for setting up the MCP Gateway & Registry:
+
+- **Option A: Pre-built Images** — Fastest setup using pre-built Docker or Podman containers. Recommended for most users.
+- **Option B: Podman (Rootless)** — Detailed Podman-specific instructions for macOS and rootless Linux environments.
+- **Option C: Build from Source** — Full source build for customization or development.
 
 ### Option A: Pre-built Images (Instant Setup)
 
@@ -387,9 +390,25 @@ export DOCKERHUB_ORG=mcpgateway
 ```
 
 **Step 4: Deploy with pre-built images**
+Our service can be deployed with two platforms for pre-built images: Docker and Podman. 
+
+**With Docker (default):**
 ```bash
 ./build_and_run.sh --prebuilt
 ```
+
+**With Podman (rootless, macOS (but NOT Apple Silicon) friendly):**
+```bash
+./build_and_run.sh --prebuilt --podman
+
+# If running on macOS Apple Silicon, remove the --prebuilt flag (more details in Podman option below) 
+./build_and_run.sh --podman # For Apple Silicon 
+```
+
+> **Port Differences:**
+> - **Docker**: Services run on privileged ports (`http://localhost`, `https://localhost`)
+> - **Podman**: Services run on non-privileged ports (`http://localhost:8080`, `https://localhost:8443`)
+> - All internal service ports remain the same (Registry: 7860, Auth: 8888, etc.)
 
 For detailed information about all Docker images used with `--prebuilt`, see [Pre-built Images Documentation](docs/prebuilt-images.md).
 
@@ -430,9 +449,75 @@ Complete: **[Testing with mcp_client.py and agent.py](docs/complete-setup-guide.
 
 **Benefits:** No build time • No Node.js required • No frontend compilation • Consistent tested images
 
-### Option B: Build from Source
+### Option B: Podman (Rootless Container Deployment)
+
+**Perfect for macOS and rootless Linux environments**
+
+Podman provides rootless container execution without requiring privileged ports, making it ideal for:
+- **macOS** users with Podman Desktop
+- **Linux** users preferring rootless containers
+- **Development** environments where Docker daemon isn't available
+
+**Quick Podman Setup (macOS non-Apple Silicon):**
+
+```bash
+# Install Podman Desktop
+brew install podman-desktop
+# OR download from: https://podman-desktop.io/
+```
+
+Inside Podman Desktop, go to Preferences > Podman Machine and create a new machine with at least 4 CPUs and 8GB RAM. Alternatively, see more detailed [Podman installation guide] (docs/installation.md#podman-installation) for instructions on setting this up on CLI. 
+
+```bash
+# Initialize Podman machine
+podman machine init
+podman machine start
+
+# Verify installation
+podman --version
+podman compose version
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your credentials
+```
+
+**Deploy with Podman** see full Podman setup instructions (downloading, installing, and initializing a first Podman container, as well as troubleshooting) in our [Installation Guide](docs/installation.md#podman-installation).
+
+**Build with Podman:**
+
+```bash
+# Auto-detect (will use Podman if Docker not available)
+./build_and_run.sh --prebuilt
+
+# Explicit Podman mode (only non-Apple Silicon)
+./build_and_run.sh --prebuilt --podman
+
+# Access registry at non-privileged ports
+open http://localhost:8080
+```
+
+> Note: **Apple Silicon (M1/M2/M3)?** Don't use `--prebuilt` with Podman on ARM64. This will cause a "proxy already running" error. See [Podman on Apple Silicon Guide](docs/podman-apple-silicon.md). 
+
+```bash
+# To run on Apple Silicon Macs:
+./build_and_run.sh --podman
+```
+
+**Key Differences vs. Docker:**
+- No root/sudo required
+- Works on macOS without privileged port access
+- HTTP port: `8080` (instead of `80`)
+- HTTPS port: `8443` (instead of `443`)
+- All other service ports unchanged
+
+For detailed Podman setup instructions, see [Installation Guide](docs/installation.md#podman-installation) and [macOS Setup Guide](docs/macos-setup-guide.md#podman-deployment).
+
+### Option C: Build from Source
 
 **New to MCP Gateway?** Start with our [Complete Setup Guide](docs/complete-setup-guide.md) for detailed step-by-step instructions from scratch on AWS EC2.
+
+**Running on macOS?** See our [macOS Setup Guide](docs/macos-setup-guide.md) for platform-specific instructions and optimizations.
 
 ### Testing & Integration Options
 
@@ -446,6 +531,7 @@ Complete: **[Testing with mcp_client.py and agent.py](docs/complete-setup-guide.
 **Next Steps:** [Testing Guide](docs/testing.md) | [Complete Installation Guide](docs/installation.md) | [Authentication Setup](docs/auth.md) | [AI Assistant Integration](docs/ai-coding-assistants-setup.md)
 
 ---
+
 
 ## Enterprise Features
 
