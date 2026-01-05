@@ -1166,100 +1166,92 @@ class TestUpdateAgent:
 class TestDeleteAgent:
     """Test agent deletion."""
 
-    def test_delete_agent_successfully(
+    @pytest.mark.asyncio
+    async def test_delete_agent_successfully(
         self,
         agent_service: AgentService,
-        mock_settings,
+        mock_agent_repository,
+        mock_search_repository,
     ):
         """Test deleting an agent."""
         # Arrange
         agent_card = AgentCardFactory(path="/test-agent")
-        agent_service.register_agent(agent_card)
+        agent_service.registered_agents["/test-agent"] = agent_card
+        agent_service.agent_state["disabled"].append("/test-agent")
+        mock_agent_repository.delete.return_value = True
 
         # Act
-        result = agent_service.delete_agent("/test-agent")
+        result = await agent_service.delete_agent("/test-agent")
 
         # Assert
         assert result is True
         assert "/test-agent" not in agent_service.registered_agents
+        mock_agent_repository.delete.assert_called_once_with("/test-agent")
 
-    def test_delete_agent_removes_from_state(
+    @pytest.mark.asyncio
+    async def test_delete_agent_removes_from_state(
         self,
         agent_service: AgentService,
-        mock_settings,
+        mock_agent_repository,
+        mock_search_repository,
     ):
         """Test that delete removes agent from state lists."""
         # Arrange
         agent_card = AgentCardFactory(path="/test-agent")
-        agent_service.register_agent(agent_card)
-        agent_service.enable_agent("/test-agent")
+        agent_service.registered_agents["/test-agent"] = agent_card
+        agent_service.agent_state["enabled"].append("/test-agent")
+        mock_agent_repository.delete.return_value = True
 
         # Act
-        agent_service.delete_agent("/test-agent")
+        await agent_service.delete_agent("/test-agent")
 
         # Assert
         assert "/test-agent" not in agent_service.agent_state["enabled"]
         assert "/test-agent" not in agent_service.agent_state["disabled"]
 
-    def test_delete_agent_not_found(
+    @pytest.mark.asyncio
+    async def test_delete_agent_not_found(
         self,
         agent_service: AgentService,
+        mock_agent_repository,
+        mock_search_repository,
     ):
         """Test deleting non-existent agent raises ValueError."""
         # Act & Assert
         with pytest.raises(ValueError, match="not found"):
-            agent_service.delete_agent("/nonexistent")
+            await agent_service.delete_agent("/nonexistent")
 
-    def test_delete_agent_removes_file(
+    @pytest.mark.asyncio
+    async def test_remove_agent_alias(
         self,
         agent_service: AgentService,
-        tmp_path: Path,
-        mock_settings,
-    ):
-        """Test that delete removes agent file from disk."""
-        # Arrange
-        agents_dir = tmp_path / "agents"
-        agents_dir.mkdir(parents=True, exist_ok=True)
-        type(mock_settings).agents_dir = property(lambda self: agents_dir)
-
-        agent_card = AgentCardFactory(path="/test-agent")
-        agent_service.register_agent(agent_card)
-
-        # Verify file exists
-        filename = _path_to_filename("/test-agent")
-        agent_file = agents_dir / filename
-        assert agent_file.exists()
-
-        # Act
-        agent_service.delete_agent("/test-agent")
-
-        # Assert
-        assert not agent_file.exists()
-
-    def test_remove_agent_alias(
-        self,
-        agent_service: AgentService,
-        mock_settings,
+        mock_agent_repository,
+        mock_search_repository,
     ):
         """Test that remove_agent is an alias for delete_agent."""
         # Arrange
         agent_card = AgentCardFactory(path="/test-agent")
-        agent_service.register_agent(agent_card)
+        agent_service.registered_agents["/test-agent"] = agent_card
+        agent_service.agent_state["disabled"].append("/test-agent")
+        mock_agent_repository.delete.return_value = True
 
         # Act
-        result = agent_service.remove_agent("/test-agent")
+        result = await agent_service.remove_agent("/test-agent")
 
         # Assert
         assert result is True
         assert "/test-agent" not in agent_service.registered_agents
 
-    def test_remove_agent_returns_false_for_not_found(
+    @pytest.mark.asyncio
+    async def test_remove_agent_returns_false_for_not_found(
         self,
         agent_service: AgentService,
+        mock_agent_repository,
+        mock_search_repository,
     ):
         """Test that remove_agent returns False for non-existent agent."""
         # Act
-        result = agent_service.remove_agent("/nonexistent")
+        result = await agent_service.remove_agent("/nonexistent")
 
         # Assert
         assert result is False
@@ -1275,138 +1267,162 @@ class TestDeleteAgent:
 class TestEnableDisableAgent:
     """Test enabling and disabling agents."""
 
-    def test_enable_agent(
+    @pytest.mark.asyncio
+    async def test_enable_agent(
         self,
         agent_service: AgentService,
-        mock_settings,
+        mock_agent_repository,
+        mock_search_repository,
     ):
         """Test enabling an agent."""
         # Arrange
         agent_card = AgentCardFactory(path="/test-agent")
-        agent_service.register_agent(agent_card)
+        agent_service.registered_agents["/test-agent"] = agent_card
+        agent_service.agent_state["disabled"].append("/test-agent")
 
         # Act
-        agent_service.enable_agent("/test-agent")
+        await agent_service.enable_agent("/test-agent")
 
         # Assert
         assert "/test-agent" in agent_service.agent_state["enabled"]
         assert "/test-agent" not in agent_service.agent_state["disabled"]
 
-    def test_enable_already_enabled_agent(
+    @pytest.mark.asyncio
+    async def test_enable_already_enabled_agent(
         self,
         agent_service: AgentService,
-        mock_settings,
+        mock_agent_repository,
+        mock_search_repository,
     ):
         """Test enabling an already enabled agent (idempotent)."""
         # Arrange
         agent_card = AgentCardFactory(path="/test-agent")
-        agent_service.register_agent(agent_card)
-        agent_service.enable_agent("/test-agent")
+        agent_service.registered_agents["/test-agent"] = agent_card
+        agent_service.agent_state["enabled"].append("/test-agent")
 
         # Act - enable again
-        agent_service.enable_agent("/test-agent")
+        await agent_service.enable_agent("/test-agent")
 
         # Assert
         assert "/test-agent" in agent_service.agent_state["enabled"]
         # Should only appear once
         assert agent_service.agent_state["enabled"].count("/test-agent") == 1
 
-    def test_enable_agent_not_found(
+    @pytest.mark.asyncio
+    async def test_enable_agent_not_found(
         self,
         agent_service: AgentService,
+        mock_agent_repository,
+        mock_search_repository,
     ):
         """Test enabling non-existent agent raises ValueError."""
         # Act & Assert
         with pytest.raises(ValueError, match="not found"):
-            agent_service.enable_agent("/nonexistent")
+            await agent_service.enable_agent("/nonexistent")
 
-    def test_disable_agent(
+    @pytest.mark.asyncio
+    async def test_disable_agent(
         self,
         agent_service: AgentService,
-        mock_settings,
+        mock_agent_repository,
+        mock_search_repository,
     ):
         """Test disabling an agent."""
         # Arrange
         agent_card = AgentCardFactory(path="/test-agent")
-        agent_service.register_agent(agent_card)
-        agent_service.enable_agent("/test-agent")
+        agent_service.registered_agents["/test-agent"] = agent_card
+        agent_service.agent_state["enabled"].append("/test-agent")
 
         # Act
-        agent_service.disable_agent("/test-agent")
+        await agent_service.disable_agent("/test-agent")
 
         # Assert
         assert "/test-agent" in agent_service.agent_state["disabled"]
         assert "/test-agent" not in agent_service.agent_state["enabled"]
 
-    def test_disable_already_disabled_agent(
+    @pytest.mark.asyncio
+    async def test_disable_already_disabled_agent(
         self,
         agent_service: AgentService,
-        mock_settings,
+        mock_agent_repository,
+        mock_search_repository,
     ):
         """Test disabling an already disabled agent (idempotent)."""
         # Arrange
         agent_card = AgentCardFactory(path="/test-agent")
-        agent_service.register_agent(agent_card)
+        agent_service.registered_agents["/test-agent"] = agent_card
+        agent_service.agent_state["disabled"].append("/test-agent")
 
         # Act - disable again (already disabled by default)
-        agent_service.disable_agent("/test-agent")
+        await agent_service.disable_agent("/test-agent")
 
         # Assert
         assert "/test-agent" in agent_service.agent_state["disabled"]
         # Should only appear once
         assert agent_service.agent_state["disabled"].count("/test-agent") == 1
 
-    def test_disable_agent_not_found(
+    @pytest.mark.asyncio
+    async def test_disable_agent_not_found(
         self,
         agent_service: AgentService,
+        mock_agent_repository,
+        mock_search_repository,
     ):
         """Test disabling non-existent agent raises ValueError."""
         # Act & Assert
         with pytest.raises(ValueError, match="not found"):
-            agent_service.disable_agent("/nonexistent")
+            await agent_service.disable_agent("/nonexistent")
 
-    def test_toggle_agent_enable(
+    @pytest.mark.asyncio
+    async def test_toggle_agent_enable(
         self,
         agent_service: AgentService,
-        mock_settings,
+        mock_agent_repository,
+        mock_search_repository,
     ):
         """Test toggling agent to enabled state."""
         # Arrange
         agent_card = AgentCardFactory(path="/test-agent")
-        agent_service.register_agent(agent_card)
+        agent_service.registered_agents["/test-agent"] = agent_card
+        agent_service.agent_state["disabled"].append("/test-agent")
 
         # Act
-        result = agent_service.toggle_agent("/test-agent", enabled=True)
+        result = await agent_service.toggle_agent("/test-agent", enabled=True)
 
         # Assert
         assert result is True
         assert "/test-agent" in agent_service.agent_state["enabled"]
 
-    def test_toggle_agent_disable(
+    @pytest.mark.asyncio
+    async def test_toggle_agent_disable(
         self,
         agent_service: AgentService,
-        mock_settings,
+        mock_agent_repository,
+        mock_search_repository,
     ):
         """Test toggling agent to disabled state."""
         # Arrange
         agent_card = AgentCardFactory(path="/test-agent")
-        agent_service.register_agent(agent_card)
-        agent_service.enable_agent("/test-agent")
+        agent_service.registered_agents["/test-agent"] = agent_card
+        agent_service.agent_state["enabled"].append("/test-agent")
 
         # Act
-        result = agent_service.toggle_agent("/test-agent", enabled=False)
+        result = await agent_service.toggle_agent("/test-agent", enabled=False)
 
         # Assert
         assert result is True
         assert "/test-agent" in agent_service.agent_state["disabled"]
 
-    def test_toggle_agent_not_found(
+    @pytest.mark.asyncio
+    async def test_toggle_agent_not_found(
         self,
         agent_service: AgentService,
+        mock_agent_repository,
+        mock_search_repository,
     ):
         """Test toggling non-existent agent returns False."""
         # Act
-        result = agent_service.toggle_agent("/nonexistent", enabled=True)
+        result = await agent_service.toggle_agent("/nonexistent", enabled=True)
 
         # Assert
         assert result is False
