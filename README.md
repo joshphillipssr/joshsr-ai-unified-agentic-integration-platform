@@ -129,6 +129,7 @@ Interactive terminal interface for chatting with AI models and discovering MCP t
 
 ## What's New
 
+- **📊 DocumentDB & MongoDB CE Storage Backend** - Production-grade distributed storage with MongoDB-compatible backends. DocumentDB provides native HNSW vector search for sub-100ms semantic queries in production deployments, while MongoDB Community Edition 8.2 enables full-featured local development with replica sets. Both backends use the same repository abstraction layer with automatic collection management, optimized indexes, and application-level vector search for MongoDB CE. Switch between MongoDB CE (local testing) and DocumentDB (production) with a single environment variable. Note: File-based storage is deprecated and will be removed in a future release. MongoDB CE is recommended for local development. [Configuration Guide](docs/configuration.md#storage-backend-configuration) | [Storage Architecture](docs/design/storage-architecture-mongodb-documentdb.md)
 - **🔒 A2A Agent Security Scanning** - Integrated security scanning for A2A agents using [Cisco AI Defense A2A Scanner](https://github.com/cisco-ai-defense/a2a-scanner). Automatic security scans during agent registration with YARA pattern matching, A2A specification validation, and heuristic threat detection. Features include automatic tagging of unsafe agents, configurable blocking policies, and detailed scan reports with API endpoints for viewing results and triggering rescans.
 - **🔧 Registry Management API** - New programmatic API for managing servers, groups, and users. Python client (`api/registry_client.py`) with type-safe interfaces, RESTful HTTP endpoints (`/api/management/*`), and comprehensive error handling. Replaces shell scripts with modern API approach while maintaining backward compatibility. [API Documentation](api/README.md) | [Service Management Guide](docs/service-management.md)
 - **⭐ Server & Agent Rating System** - Rate and review agents with an interactive 5-star rating widget. Users can submit ratings via the UI or CLI, view aggregate ratings with individual rating details, and update their existing ratings. Features include a rotating buffer (max 100 ratings per agent), one rating per user, float average calculations, and full OpenAPI documentation. Enables community-driven agent quality assessment and discovery.
@@ -357,14 +358,13 @@ flowchart TB
 - Dual authentication supporting both human and machine authentication
 
 ---
-
 ## Quick Start
 
-> **📱 Running on macOS?** See our [macOS Setup Guide](docs/macos-setup-guide.md) for platform-specific instructions and optimizations.
-> 
-> **🐋 Using Podman?** This project supports both Docker and Podman. Use the `--podman` flag for rootless container deployment.
-> 
-> **⚠️ Apple Silicon (M1/M2/M3)?** Don't use `--prebuilt` with Podman on ARM64. See [Podman on Apple Silicon Guide](docs/podman-apple-silicon.md).
+There are 3 options for setting up the MCP Gateway & Registry:
+
+- **Option A: Pre-built Images** — Fastest setup using pre-built Docker or Podman containers. Recommended for most users.
+- **Option B: Podman (Rootless)** — Detailed Podman-specific instructions for macOS and rootless Linux environments.
+- **Option C: Build from Source** — Full source build for customization or development.
 
 ### Option A: Pre-built Images (Instant Setup)
 
@@ -390,18 +390,22 @@ export DOCKERHUB_ORG=mcpgateway
 ```
 
 **Step 4: Deploy with pre-built images**
+Our service can be deployed with two platforms for pre-built images: Docker and Podman. 
 
 **With Docker (default):**
 ```bash
 ./build_and_run.sh --prebuilt
 ```
 
-**With Podman (rootless, macOS friendly):**
+**With Podman (rootless, macOS (but NOT Apple Silicon) friendly):**
 ```bash
 ./build_and_run.sh --prebuilt --podman
+
+# If running on macOS Apple Silicon, remove the --prebuilt flag (more details in Podman option below) 
+./build_and_run.sh --podman # For Apple Silicon 
 ```
 
-> **📍 Port Differences:**
+> **Port Differences:**
 > - **Docker**: Services run on privileged ports (`http://localhost`, `https://localhost`)
 > - **Podman**: Services run on non-privileged ports (`http://localhost:8080`, `https://localhost:8443`)
 > - All internal service ports remain the same (Registry: 7860, Auth: 8888, etc.)
@@ -454,13 +458,17 @@ Podman provides rootless container execution without requiring privileged ports,
 - **Linux** users preferring rootless containers
 - **Development** environments where Docker daemon isn't available
 
-**Quick Podman Setup (macOS):**
+**Quick Podman Setup (macOS non-Apple Silicon):**
 
 ```bash
 # Install Podman Desktop
 brew install podman-desktop
 # OR download from: https://podman-desktop.io/
+```
 
+Inside Podman Desktop, go to Preferences > Podman Machine and create a new machine with at least 4 CPUs and 8GB RAM. Alternatively, see more detailed [Podman installation guide] (docs/installation.md#podman-installation) for instructions on setting this up on CLI. 
+
+```bash
 # Initialize Podman machine
 podman machine init
 podman machine start
@@ -468,32 +476,48 @@ podman machine start
 # Verify installation
 podman --version
 podman compose version
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your credentials
 ```
 
-**Deploy with Podman:**
+**Deploy with Podman** see full Podman setup instructions (downloading, installing, and initializing a first Podman container, as well as troubleshooting) in our [Installation Guide](docs/installation.md#podman-installation).
+
+**Build with Podman:**
+
 ```bash
 # Auto-detect (will use Podman if Docker not available)
 ./build_and_run.sh --prebuilt
 
-# Explicit Podman mode
+# Explicit Podman mode (only non-Apple Silicon)
 ./build_and_run.sh --prebuilt --podman
 
 # Access registry at non-privileged ports
 open http://localhost:8080
 ```
 
-**Key Differences:**
-- ✅ No root/sudo required
-- ✅ Works on macOS without privileged port access
-- ✅ HTTP port: `8080` (instead of `80`)
-- ✅ HTTPS port: `8443` (instead of `443`)
-- ✅ All other service ports unchanged
+> Note: **Apple Silicon (M1/M2/M3)?** Don't use `--prebuilt` with Podman on ARM64. This will cause a "proxy already running" error. See [Podman on Apple Silicon Guide](docs/podman-apple-silicon.md). 
+
+```bash
+# To run on Apple Silicon Macs:
+./build_and_run.sh --podman
+```
+
+**Key Differences vs. Docker:**
+- No root/sudo required
+- Works on macOS without privileged port access
+- HTTP port: `8080` (instead of `80`)
+- HTTPS port: `8443` (instead of `443`)
+- All other service ports unchanged
 
 For detailed Podman setup instructions, see [Installation Guide](docs/installation.md#podman-installation) and [macOS Setup Guide](docs/macos-setup-guide.md#podman-deployment).
 
 ### Option C: Build from Source
 
 **New to MCP Gateway?** Start with our [Complete Setup Guide](docs/complete-setup-guide.md) for detailed step-by-step instructions from scratch on AWS EC2.
+
+**Running on macOS?** See our [macOS Setup Guide](docs/macos-setup-guide.md) for platform-specific instructions and optimizations.
 
 ### Testing & Integration Options
 
@@ -549,6 +573,7 @@ pre-commit run --all-files
 **Next Steps:** [Complete Installation Guide](docs/installation.md) | [Authentication Setup](docs/auth.md) | [AI Assistant Integration](docs/ai-coding-assistants-setup.md)
 
 ---
+
 
 ## Enterprise Features
 
@@ -672,7 +697,7 @@ echo 'ASOR_ACCESS_TOKEN=your_token' >> .env
 |------------------|-------------------|------------------------|
 | [Complete Setup Guide](docs/complete-setup-guide.md)<br/>**NEW!** Step-by-step from scratch on AWS EC2 | [Authentication Guide](docs/auth.md)<br/>OAuth and identity provider integration | [AI Coding Assistants Setup](docs/ai-coding-assistants-setup.md)<br/>VS Code, Cursor, Claude Code integration |
 | [Installation Guide](docs/installation.md)<br/>Complete setup instructions for EC2 and EKS | [AWS ECS Deployment](terraform/aws-ecs/README.md)<br/>Production-ready deployment on AWS ECS Fargate | [API Reference](docs/registry_api.md)<br/>Programmatic registry management |
-| [Quick Start Tutorial](docs/quick-start.md)<br/>Get running in 5 minutes | [Keycloak Integration](docs/keycloak-integration.md)<br/>Enterprise identity with agent audit trails | [Token Refresh Service](docs/token-refresh-service.md)<br/>Automated token refresh and lifecycle management |
+| [Keycloak Integration](docs/keycloak-integration.md)<br/>Enterprise identity with agent audit trails | [Token Refresh Service](docs/token-refresh-service.md)<br/>Automated token refresh and lifecycle management | [MCP Registry CLI](docs/mcp-registry-cli.md)<br/>Command-line client for registry management |
 | [Configuration Reference](docs/configuration.md)<br/>Environment variables and settings | [Amazon Cognito Setup](docs/cognito.md)<br/>Step-by-step IdP configuration | [Observability Guide](docs/OBSERVABILITY.md)<br/>**NEW!** Metrics, monitoring, and OpenTelemetry setup |
 | | [Anthropic Registry Import](docs/anthropic-registry-import.md)<br/>**NEW!** Import servers from Anthropic MCP Registry | [Federation Guide](docs/federation.md)<br/>**NEW!** External registry integration (Anthropic, ASOR) |
 | | [Service Management](docs/service-management.md)<br/>Server lifecycle and operations | [Anthropic Registry API](docs/anthropic_registry_api.md)<br/>**NEW!** REST API compatibility |
@@ -723,9 +748,6 @@ The following GitHub issues represent our current development roadmap and planne
 
 - **[#118 - Agent-as-Tool Integration: Dynamic MCP Server Generation](https://github.com/agentic-community/mcp-gateway-registry/issues/118)**
   Convert existing AI agents into MCP servers dynamically, enabling legacy agent ecosystems to participate in the MCP protocol without code rewrites.
-
-- **[#121 - Migrate to OpenSearch for Server Storage and Vector Search](https://github.com/agentic-community/mcp-gateway-registry/issues/121)**
-  Replace current storage with OpenSearch to provide advanced vector search capabilities and improved scalability for large server registries.
 
 - **[#98 - Complete GDPR and SOX Compliance Implementation](https://github.com/agentic-community/mcp-gateway-registry/issues/98)**
   Full compliance implementation for GDPR and SOX requirements, including data retention policies, audit trails, and privacy controls.
