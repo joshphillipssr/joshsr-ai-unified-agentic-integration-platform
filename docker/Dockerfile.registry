@@ -102,7 +102,6 @@ COPY --from=backend-builder /app/api /app/api
 COPY --from=backend-builder /app/config /app/config
 COPY --from=backend-builder /app/docker /app/docker
 COPY --from=backend-builder /app/pyproject.toml /app/pyproject.toml
-COPY --from=backend-builder /app/README.md /app/README.md
 
 # Copy built frontend from frontend builder
 COPY --from=frontend-builder /app/frontend/build /app/frontend/build
