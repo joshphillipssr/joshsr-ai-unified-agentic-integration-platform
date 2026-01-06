@@ -1494,7 +1494,101 @@ For production Kubernetes deployments, see [EKS deployment guide](https://github
 - Observability: Native CloudWatch and Prometheus integration
 - Security: Pod security policies and network policies
 
-### 9.6. Post-Installation Verification
+### 9.6. AWS ECS Deployment (RECOMMENDED FOR PRODUCTION)
+
+**Production-grade infrastructure** using AWS ECS Fargate with complete Terraform automation. This is the **most mature deployment option** for AWS production environments.
+
+**Key Benefits:**
+- **Fully Managed Compute**: ECS Fargate eliminates server management
+- **Multi-AZ High Availability**: Services deployed across multiple availability zones
+- **Auto-Scaling**: Task-level autoscaling based on CPU/memory metrics
+- **Native AWS Integration**: CloudWatch, Secrets Manager, DocumentDB, Aurora
+- **Infrastructure as Code**: Complete Terraform configuration in `terraform/aws-ecs/`
+- **SSL/TLS**: Automatic certificate provisioning via AWS Certificate Manager
+- **Cost Optimized**: Aurora Serverless v2 auto-scales from 0.5 to 2 ACUs
+
+**Architecture Components:**
+- **Compute**: ECS Fargate tasks (serverless containers)
+- **Load Balancers**:
+  - Main ALB (internet-facing) for Registry and Auth Server
+  - Keycloak ALB for identity management
+- **Data Layer**:
+  - **Amazon DocumentDB**: Primary storage with native HNSW vector search
+  - **Amazon Aurora PostgreSQL Serverless v2**: User data and sessions
+- **Networking**: VPC with public/private subnets across 2 AZs
+- **Security**: AWS Secrets Manager, SSL/TLS, security groups
+- **Observability**: CloudWatch Logs, CloudWatch Alarms, SNS notifications
+
+**Quick Start:**
+```bash
+# Prerequisites: Domain with Route53 hosted zone, AWS credentials
+
+cd terraform/aws-ecs
+
+# Step 1: Configure variables
+cp terraform.tfvars.example terraform.tfvars
+nano terraform.tfvars  # Set domain_name, aws_region, etc.
+
+# Step 2: Initialize Terraform
+terraform init
+
+# Step 3: Review deployment plan
+terraform plan
+
+# Step 4: Deploy infrastructure (~60-90 minutes)
+terraform apply
+
+# Step 5: Get outputs
+terraform output -json > terraform-outputs.json
+```
+
+**Post-Deployment:**
+```bash
+# View service URLs
+terraform output registry_url
+terraform output keycloak_url
+
+# Monitor logs
+./scripts/view-cloudwatch-logs.sh registry
+./scripts/view-cloudwatch-logs.sh auth-server
+
+# Check service health
+aws ecs describe-services --cluster mcp-gateway-ecs-cluster \
+  --services mcp-gateway-v2-registry
+
+# Scale services
+aws ecs update-service --cluster mcp-gateway-ecs-cluster \
+  --service mcp-gateway-v2-registry --desired-count 3
+```
+
+**Configuration:**
+- **Deployment Time**: 60-90 minutes for initial deployment
+- **Prerequisites**:
+  - Domain with Route53 hosted zone (any registrar supported)
+  - AWS account with AdministratorAccess or specific IAM permissions
+  - Terraform >= 1.5.0, AWS CLI >= 2.0, Docker >= 20.10
+- **Region Support**: All commercial AWS regions
+- **Regional Domains**: Automatic subdomain creation (e.g., `registry.us-east-1.your.domain`)
+
+**Documentation:**
+- Complete guide: `terraform/aws-ecs/README.md`
+- Architecture diagrams: `terraform/aws-ecs/img/`
+- Troubleshooting: `terraform/aws-ecs/README.md#troubleshooting`
+- Cost optimization: `terraform/aws-ecs/README.md#cost-optimization`
+
+**Comparison: ECS vs EKS vs EC2**
+
+| Feature | ECS Fargate | EKS | EC2 |
+|---------|-------------|-----|-----|
+| **Maturity** | ✅ Production-ready | ⚠️  Preview/Experimental | ✅ Stable |
+| **Management** | Fully managed | Managed control plane | Self-managed |
+| **IaC** | Complete Terraform | Partial | Docker Compose |
+| **Scaling** | Auto-scaling tasks | Horizontal pod autoscaling | Manual/script-based |
+| **Cost** | Pay-per-task | Higher (node costs) | Fixed instance costs |
+| **Setup Time** | 60-90 min | 2-4 hours | 30-60 min |
+| **Best For** | Production deployments | K8s-native workloads | Development/testing |
+
+### 9.7. Post-Installation Verification
 
 ```bash
 # Check service status
@@ -1591,12 +1685,68 @@ cd credentials-provider
 
 ### 11.1. Security Scanning
 
+**IMPORTANT:** The MCP Gateway & Registry provides **TWO SEPARATE security scanning systems** - one for MCP servers and one for A2A agents.
+
+#### MCP Server Security Scanning
+
 **Integrated Vulnerability Detection** with [Cisco AI Defence MCP Scanner](https://github.com/cisco-ai-defense/mcp-scanner):
 - Automated security scanning during server registration
 - Periodic registry-wide scans
+- YARA pattern matching for malicious code detection
 - Detailed security reports with vulnerability details, severity assessments, and remediation recommendations
 - Automatic protection: Servers with security issues automatically disabled
 - Compliance ready: Security audit trails and vulnerability tracking
+
+**Configuration:**
+```bash
+# Enable MCP server scanning
+SECURITY_SCAN_ENABLED=true
+SECURITY_SCAN_ON_REGISTRATION=true
+BLOCK_UNSAFE_SERVERS=true
+```
+
+**Service Location:** `registry/services/security_scanner.py`
+**Scanner Integration:** `registry/api/server_routes.py` (automatic during registration)
+
+#### A2A Agent Security Scanning
+
+**Integrated Agent Vulnerability Detection** with [Cisco AI Defense A2A Scanner](https://github.com/cisco-ai-defense/a2a-scanner):
+- Automated security scanning during agent registration
+- Multi-analyzer support: YARA pattern matching, LLM-based analysis, static analysis
+- Agent card validation and security assessment
+- Configurable blocking policies for unsafe agents
+- Detailed scan reports with security findings and recommendations
+- Optional "security-pending" tagging for agents awaiting scan results
+
+**Configuration:**
+```bash
+# Enable A2A agent scanning
+AGENT_SECURITY_SCAN_ENABLED=true
+AGENT_SECURITY_SCAN_ON_REGISTRATION=true
+AGENT_SECURITY_BLOCK_UNSAFE_AGENTS=true
+AGENT_SECURITY_ANALYZERS=yara,llm  # Comma-separated list
+AGENT_SECURITY_SCAN_TIMEOUT=300
+A2A_SCANNER_LLM_API_KEY=your-api-key  # For LLM-based analysis
+AGENT_SECURITY_ADD_PENDING_TAG=true  # Add security-pending tag during scan
+```
+
+**Service Location:** `registry/services/agent_scanner.py`
+**Scanner Integration:** `registry/api/agent_routes.py` (automatic during registration)
+**Scan Storage:** Results stored in security scan repository for audit trails
+
+**Analyzers:**
+- **YARA**: Pattern-based malicious code detection
+- **LLM**: AI-powered security analysis using Azure OpenAI
+- **Static**: Code structure and configuration analysis
+
+**Security Scan Results API:**
+```bash
+# Get agent scan results
+GET /api/v2/agents/{agent_path}/security-scan
+
+# Get server scan results
+GET /api/v2/servers/{server_path}/security-scan
+```
 
 ### 11.2. Security Best Practices
 
