@@ -941,6 +941,91 @@ uv run python cli/mcp_services.py create-user \
 uv run python cli/mcp_services.py list-groups
 ```
 
+### 6.4. Rating System
+
+**Community-driven quality assessment** for both MCP servers and AI agents using a 5-star rating system.
+
+**Key Features:**
+- **5-Star Rating Scale**: Users rate servers/agents from 1 to 5 stars
+- **Interactive UI Widget**: Visual star rating interface in the web dashboard
+- **CLI Support**: Submit ratings via command-line tools
+- **Aggregate Ratings**: Weighted average with individual rating details
+- **One Rating Per User**: Users can update their rating, but only one rating per entity
+- **Rotating Buffer**: Maximum 100 ratings per entity (FIFO replacement)
+- **Anonymous Tracking**: Ratings linked to username but not publicly displayed
+- **Real-time Updates**: Aggregate rating updates immediately after submission
+
+**Rating API Endpoints:**
+
+```bash
+# Submit a rating for a server
+POST /api/v2/servers/{server_path}/rating
+{
+  "rating": 5,  # 1-5 stars
+  "username": "john.doe"
+}
+
+# Submit a rating for an agent
+POST /api/v2/agents/{agent_path}/rating
+{
+  "rating": 4,
+  "username": "jane.smith"
+}
+
+# Get server with rating details
+GET /api/v2/servers/{server_path}
+# Returns:
+{
+  "server_path": "/example-server",
+  "name": "Example Server",
+  "aggregate_rating": 4.5,  # Weighted average
+  "rating_count": 42,
+  "rating_details": [
+    {"user": "john.doe", "rating": 5},
+    {"user": "jane.smith", "rating": 4}
+    # ... up to 100 ratings
+  ]
+}
+
+# Get agent with rating details
+GET /api/v2/agents/{agent_path}
+# Similar structure with aggregate_rating, rating_count, rating_details
+```
+
+**CLI Rating Submission:**
+```bash
+# Rate a server
+uv run python cli/mcp_services.py rate-server \
+  --server-path /example-server \
+  --rating 5 \
+  --username john.doe
+
+# Rate an agent
+uv run python cli/mcp_services.py rate-agent \
+  --agent-path /code-reviewer \
+  --rating 4 \
+  --username jane.smith
+```
+
+**Rating Logic:**
+- **Validation**: Ratings must be integers between 1 and 5 (inclusive)
+- **Update Behavior**: Submitting a new rating for the same user updates their existing rating
+- **Rotating Buffer**: Once 100 ratings are reached, oldest ratings are removed (FIFO)
+- **Aggregate Calculation**: Simple arithmetic mean of all ratings
+- **Service Location**: `registry/services/rating_service.py`
+
+**Web UI Integration:**
+- Interactive 5-star widget on server/agent detail pages
+- Visual feedback showing aggregate rating and count
+- Click to submit rating (requires authentication)
+- Real-time update on submission
+
+**Use Cases:**
+- **Quality Discovery**: Find highly-rated servers/agents for specific tasks
+- **Community Feedback**: Share experiences with tools and agents
+- **Filtering**: Sort search results by rating
+- **Reputation**: Build trust in community-contributed servers/agents
+
 ## 7. Configuration & Setup
 
 ### 7.1. Main Environment Configuration
@@ -1816,17 +1901,137 @@ cp .oauth-tokens/vscode-mcp.json ~/.vscode/settings.json
 cp .oauth-tokens/mcp.json ~/.vscode/mcp-settings.json
 ```
 
-### 12.2. Anthropic MCP Registry Integration
+### 12.2. Federation with External Registries
+
+**Federation Architecture** allows you to import and manage servers/agents from multiple external registries through a unified interface with centralized authentication and access control.
+
+**Supported Federation Sources:**
+
+| Source | Type | Description | Visual Tag | Auth Required |
+|--------|------|-------------|------------|---------------|
+| **Anthropic MCP Registry** | MCP Servers | Official Anthropic curated servers | `ANTHROPIC` (purple) | No |
+| **Workday ASOR** | AI Agents | Agent System of Record | `ASOR` (orange) | Yes (OAuth) |
+
+**Key Benefits:**
+- **Centralized Management**: Single interface for all servers/agents regardless of source
+- **Unified Authentication**: Consistent auth/authz across all federated entities
+- **Visual Tagging**: Color-coded tags show federation source (purple for Anthropic, orange for ASOR)
+- **Automatic Synchronization**: Scheduled sync to keep federation up-to-date
+- **Selective Import**: Import all or specific entities from each source
+- **Audit Trail**: Complete tracking of federated entity provenance
+
+#### Anthropic MCP Registry Integration
 
 **Features:**
-- Import servers from Anthropic's official MCP Registry
+- Import servers from [Anthropic's official MCP Registry](https://registry.modelcontextprotocol.io)
 - Full REST API compatibility
+- No authentication required
+- Purple `ANTHROPIC` visual tag on federated servers
 - Unified access through your gateway with centralized auth
 
-**Import servers:**
+**Configuration:**
 ```bash
-./cli/import_anthropic_servers.py --select
+# Enable Anthropic federation in .env
+ANTHROPIC_REGISTRY_ENABLED=true
+
+# Federation config file: ~/mcp-gateway/federation.json
+{
+  "anthropic": {
+    "enabled": true,
+    "endpoint": "https://registry.modelcontextprotocol.io",
+    "servers": []  # Empty = import all, or specify: [{"name": "server-name"}]
+  }
+}
 ```
+
+**Import Servers:**
+```bash
+# Interactive selection
+./cli/import_anthropic_servers.py --select
+
+# Import all available servers
+./cli/import_anthropic_servers.py --all
+
+# Import specific servers (via federation.json)
+{
+  "anthropic": {
+    "servers": [
+      {"name": "io.github.jgador/websharp"},
+      {"name": "modelcontextprotocol/filesystem"},
+      {"name": "modelcontextprotocol/brave-search"}
+    ]
+  }
+}
+```
+
+**Service Location:** `registry/services/federation/anthropic.py`
+
+#### Workday ASOR Integration
+
+**Features:**
+- Import AI agents from Workday Agent System of Record
+- OAuth 2.0 authentication with token refresh
+- Orange `ASOR` visual tag on federated agents
+- Enterprise agent lifecycle management
+- Scheduled synchronization with ASOR backend
+
+**Prerequisites:**
+1. Valid Workday tenant with ASOR enabled
+2. OAuth credentials (Client ID and Secret)
+3. Access token with "Agent System of Record" scope
+
+**Configuration:**
+```bash
+# Add to .env
+ASOR_CLIENT_ID=your_client_id
+ASOR_CLIENT_SECRET=your_client_secret
+ASOR_TENANT_NAME=your_tenant_name
+ASOR_HOSTNAME=your_host_name
+ASOR_ACCESS_TOKEN=your_oauth_token  # Generated via get_asor_token.py
+
+# Federation config: ~/mcp-gateway/federation.json
+{
+  "asor": {
+    "enabled": true,
+    "endpoint": "https://wcpdev-services1.wd103.myworkday.com/ccx/api/asor/v1/awsasor_wcpdev1",
+    "auth_env_var": "ASOR_ACCESS_TOKEN",
+    "agents": []  # Empty = import all
+  }
+}
+```
+
+**Get OAuth Token:**
+```bash
+# Run token generator (interactive OAuth flow)
+python3 get_asor_token.py
+
+# Follow prompts to:
+# 1. Authorize via browser
+# 2. Complete OAuth flow
+# 3. Receive access token for .env
+```
+
+**Service Location:** `registry/services/federation/asor.py`
+
+#### Federation Synchronization
+
+**Automatic Sync:**
+- Periodic synchronization keeps federated entities up-to-date
+- Configurable sync schedule
+- Handles entity updates, additions, and removals
+- Maintains federation metadata (source, sync timestamp)
+
+**Manual Sync:**
+```bash
+# Trigger manual federation sync
+uv run python -m registry.services.federation.sync
+
+# Sync specific source
+uv run python -m registry.services.federation.sync --source anthropic
+uv run python -m registry.services.federation.sync --source asor
+```
+
+**Documentation:** Complete federation guide at `docs/federation.md`
 
 ### 12.3. Token Vending Service
 
