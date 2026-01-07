@@ -1,15 +1,19 @@
 #
 # Keycloak DNS and SSL Certificate
 #
+# These resources are only created when enable_route53_dns = true
+#
 
 # Use existing hosted zone for the root domain
 data "aws_route53_zone" "root" {
+  count        = var.enable_route53_dns ? 1 : 0
   name         = local.hosted_zone_domain
   private_zone = false
 }
 
 # Create SSL certificate for Keycloak domain
 resource "aws_acm_certificate" "keycloak" {
+  count             = var.enable_route53_dns ? 1 : 0
   domain_name       = local.keycloak_domain
   validation_method = "DNS"
 
@@ -27,25 +31,26 @@ resource "aws_acm_certificate" "keycloak" {
 
 # Create DNS validation records
 resource "aws_route53_record" "keycloak_certificate_validation" {
-  for_each = {
-    for dvo in aws_acm_certificate.keycloak.domain_validation_options : dvo.domain_name => {
+  for_each = var.enable_route53_dns ? {
+    for dvo in aws_acm_certificate.keycloak[0].domain_validation_options : dvo.domain_name => {
       name   = dvo.resource_record_name
       record = dvo.resource_record_value
       type   = dvo.resource_record_type
     }
-  }
+  } : {}
 
   allow_overwrite = true
   name            = each.value.name
   records         = [each.value.record]
   ttl             = 60
   type            = each.value.type
-  zone_id         = data.aws_route53_zone.root.zone_id
+  zone_id         = data.aws_route53_zone.root[0].zone_id
 }
 
 # Wait for certificate validation
 resource "aws_acm_certificate_validation" "keycloak" {
-  certificate_arn = aws_acm_certificate.keycloak.arn
+  count           = var.enable_route53_dns ? 1 : 0
+  certificate_arn = aws_acm_certificate.keycloak[0].arn
   timeouts {
     create = "5m"
   }
@@ -54,7 +59,8 @@ resource "aws_acm_certificate_validation" "keycloak" {
 
 # Create A record for Keycloak subdomain
 resource "aws_route53_record" "keycloak" {
-  zone_id = data.aws_route53_zone.root.zone_id
+  count   = var.enable_route53_dns ? 1 : 0
+  zone_id = data.aws_route53_zone.root[0].zone_id
   name    = local.keycloak_domain
   type    = "A"
 

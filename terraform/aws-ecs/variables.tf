@@ -239,3 +239,19 @@ variable "session_cookie_domain" {
   default     = ""
 }
 
+#
+# CloudFront Configuration (Alternative to Custom DNS)
+#
+
+variable "enable_cloudfront" {
+  description = "Enable CloudFront distributions for HTTPS without custom domain. Uses default *.cloudfront.net certificates."
+  type        = bool
+  default     = false
+}
+
+variable "enable_route53_dns" {
+  description = "Enable Route53 DNS records and ACM certificates for custom domain. Set to false when using CloudFront-only deployment."
+  type        = bool
+  default     = true
+}
+

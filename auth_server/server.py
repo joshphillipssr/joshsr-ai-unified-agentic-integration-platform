@@ -78,6 +78,35 @@ def load_scopes_config():
 SCOPES_CONFIG = load_scopes_config()
 
 # Utility functions for GDPR/SOX compliance
+
+def is_request_https(request) -> bool:
+    """
+    Detect if the original request was HTTPS.
+    
+    Priority order:
+    1. X-Cloudfront-Forwarded-Proto header (CloudFront deployments)
+    2. x-forwarded-proto header (ALB/custom domain deployments)
+    3. Request URL scheme (direct access)
+    
+    Args:
+        request: FastAPI Request object
+        
+    Returns:
+        True if the original request was HTTPS
+    """
+    # Check CloudFront header first (ALB won't overwrite this)
+    cloudfront_proto = request.headers.get("x-cloudfront-forwarded-proto", "")
+    if cloudfront_proto.lower() == "https":
+        return True
+    
+    # Fall back to standard x-forwarded-proto
+    x_forwarded_proto = request.headers.get("x-forwarded-proto", "")
+    if x_forwarded_proto.lower() == "https":
+        return True
+    
+    # Finally check request scheme
+    return request.url.scheme == "https"
+
 def mask_sensitive_id(value: str) -> str:
     """Mask sensitive IDs showing only first and last 4 characters."""
     if not value or len(value) <= 8:
@@ -1794,9 +1823,8 @@ async def oauth2_callback(
         response = RedirectResponse(url=redirect_url, status_code=302)
         
         # Set registry-compatible session cookie
-        # Check if HTTPS is terminated at load balancer (x-forwarded-proto header)
-        x_forwarded_proto = request.headers.get("x-forwarded-proto", "")
-        is_https = x_forwarded_proto == "https" or request.url.scheme == "https"
+        # Check if HTTPS is terminated at load balancer/CloudFront
+        is_https = is_request_https(request)
 
         # Only set secure=True if the original request was HTTPS
         cookie_secure_config = OAUTH2_CONFIG.get("session", {}).get("secure", False)

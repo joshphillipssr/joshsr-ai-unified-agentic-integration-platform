@@ -91,10 +91,11 @@ output "deployment_summary" {
   description = "Summary of deployed components"
   value = {
     mcp_gateway_deployed = true
-    https_enabled        = aws_acm_certificate.registry.arn != ""
+    https_enabled        = var.enable_route53_dns || var.enable_cloudfront
     monitoring_enabled   = var.enable_monitoring
     multi_az_nat         = true
     autoscaling_enabled  = true
+    deployment_mode      = var.enable_cloudfront && !var.enable_route53_dns ? "cloudfront" : (var.enable_route53_dns ? "custom-domain" : "development")
   }
 }
 
@@ -104,12 +105,16 @@ output "deployment_summary" {
 
 output "keycloak_url" {
   description = "Keycloak URL"
-  value       = "https://${local.keycloak_domain}"
+  value       = var.enable_route53_dns ? "https://${local.keycloak_domain}" : (
+    var.enable_cloudfront ? "https://${aws_cloudfront_distribution.keycloak[0].domain_name}" : "http://${aws_lb.keycloak.dns_name}"
+  )
 }
 
 output "keycloak_admin_console" {
   description = "Keycloak admin console URL"
-  value       = "https://${local.keycloak_domain}/admin"
+  value       = var.enable_route53_dns ? "https://${local.keycloak_domain}/admin" : (
+    var.enable_cloudfront ? "https://${aws_cloudfront_distribution.keycloak[0].domain_name}/admin" : "http://${aws_lb.keycloak.dns_name}/admin"
+  )
 }
 
 output "keycloak_alb_dns" {
@@ -128,19 +133,41 @@ output "keycloak_ecr_repository" {
 
 output "registry_url" {
   description = "Registry URL with custom domain"
-  value       = "https://registry.${local.root_domain}"
+  value       = var.enable_route53_dns ? "https://registry.${local.root_domain}" : null
 }
 
 output "registry_certificate_arn" {
   description = "ACM certificate ARN for registry subdomain"
-  value       = aws_acm_certificate.registry.arn
+  value       = var.enable_route53_dns ? aws_acm_certificate.registry[0].arn : null
 }
 
 output "registry_dns_record" {
   description = "Registry DNS A record details"
-  value = {
-    name    = aws_route53_record.registry.name
-    type    = aws_route53_record.registry.type
-    zone_id = aws_route53_record.registry.zone_id
-  }
+  value = var.enable_route53_dns ? {
+    name    = aws_route53_record.registry[0].name
+    type    = aws_route53_record.registry[0].type
+    zone_id = aws_route53_record.registry[0].zone_id
+  } : null
+}
+
+
+#
+# CloudFront Outputs (when enabled)
+#
+
+output "cloudfront_mcp_gateway_url" {
+  description = "CloudFront URL for MCP Gateway (when CloudFront is enabled)"
+  value       = var.enable_cloudfront ? "https://${aws_cloudfront_distribution.mcp_gateway[0].domain_name}" : null
+}
+
+output "cloudfront_keycloak_url" {
+  description = "CloudFront URL for Keycloak (when CloudFront is enabled)"
+  value       = var.enable_cloudfront ? "https://${aws_cloudfront_distribution.keycloak[0].domain_name}" : null
+}
+
+output "deployment_mode" {
+  description = "Current deployment mode based on configuration"
+  value = var.enable_cloudfront && !var.enable_route53_dns ? "cloudfront" : (
+    var.enable_route53_dns ? "custom-domain" : "development"
+  )
 }

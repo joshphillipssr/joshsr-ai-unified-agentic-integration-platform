@@ -69,13 +69,14 @@ resource "aws_lb_target_group" "keycloak" {
   }
 }
 
-# HTTPS Listener
+# HTTPS Listener (only when Route53 DNS is enabled with ACM certificate)
 resource "aws_lb_listener" "keycloak_https" {
+  count             = var.enable_route53_dns ? 1 : 0
   load_balancer_arn = aws_lb.keycloak.arn
   port              = "443"
   protocol          = "HTTPS"
   ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
-  certificate_arn   = aws_acm_certificate.keycloak.arn
+  certificate_arn   = aws_acm_certificate.keycloak[0].arn
 
   default_action {
     type             = "forward"
@@ -85,19 +86,25 @@ resource "aws_lb_listener" "keycloak_https" {
   tags = local.common_tags
 }
 
-# HTTP to HTTPS Redirect Listener
-resource "aws_lb_listener" "keycloak_http_redirect" {
+# HTTP Listener - behavior depends on deployment mode
+# With Route53 DNS: redirect to HTTPS
+# Without Route53 DNS (CloudFront mode): forward to target (CloudFront handles HTTPS)
+resource "aws_lb_listener" "keycloak_http" {
   load_balancer_arn = aws_lb.keycloak.arn
   port              = "80"
   protocol          = "HTTP"
 
   default_action {
-    type = "redirect"
+    type             = var.enable_route53_dns ? "redirect" : "forward"
+    target_group_arn = var.enable_route53_dns ? null : aws_lb_target_group.keycloak.arn
 
-    redirect {
-      port        = "443"
-      protocol    = "HTTPS"
-      status_code = "HTTP_301"
+    dynamic "redirect" {
+      for_each = var.enable_route53_dns ? [1] : []
+      content {
+        port        = "443"
+        protocol    = "HTTPS"
+        status_code = "HTTP_301"
+      }
     }
   }
 

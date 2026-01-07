@@ -34,9 +34,9 @@ module "mcp_gateway" {
   ecs_cluster_name        = module.ecs_cluster.name
   task_execution_role_arn = module.ecs_cluster.task_exec_iam_role_arn
 
-  # HTTPS configuration
-  certificate_arn = aws_acm_certificate.registry.arn
-  domain_name     = "registry.${local.root_domain}"
+  # HTTPS configuration - only use certificate when Route53 DNS is enabled
+  certificate_arn = var.enable_route53_dns ? aws_acm_certificate.registry[0].arn : ""
+  domain_name     = var.enable_route53_dns ? "registry.${local.root_domain}" : ""
 
   # Keycloak configuration
   keycloak_domain = local.keycloak_domain
@@ -81,4 +81,37 @@ module "mcp_gateway" {
   # Session cookie security configuration
   session_cookie_secure = var.session_cookie_secure
   session_cookie_domain = var.session_cookie_domain
+}
+
+# =============================================================================
+# CloudFront Configuration Warnings
+# =============================================================================
+
+# Warning for dual ingress configuration (both CloudFront and custom domain)
+resource "null_resource" "dual_ingress_warning" {
+  count = var.enable_cloudfront && var.enable_route53_dns ? 1 : 0
+
+  triggers = {
+    always_run = timestamp()
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      echo ""
+      echo "============================================================"
+      echo "WARNING: Dual Ingress Configuration Detected"
+      echo "============================================================"
+      echo "Both CloudFront (enable_cloudfront=true) and Route53 DNS"
+      echo "(enable_route53_dns=true) are enabled."
+      echo ""
+      echo "This creates TWO access paths:"
+      echo "  1. CloudFront URLs: https://*.cloudfront.net"
+      echo "  2. Custom Domain URLs: https://registry.${local.root_domain}"
+      echo ""
+      echo "This is NOT a security risk, but may cause user confusion."
+      echo "Consider using only one ingress method for clarity."
+      echo "============================================================"
+      echo ""
+    EOT
+  }
 }

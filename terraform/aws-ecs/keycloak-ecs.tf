@@ -3,6 +3,12 @@
 #
 
 locals {
+  # Determine Keycloak hostname based on deployment mode
+  # CloudFront mode: use CloudFront domain, Custom DNS mode: use keycloak_domain
+  keycloak_hostname = var.enable_cloudfront && !var.enable_route53_dns ? (
+    var.enable_cloudfront ? aws_cloudfront_distribution.keycloak[0].domain_name : local.keycloak_domain
+  ) : local.keycloak_domain
+
   keycloak_container_env = [
     {
       name  = "AWS_REGION"
@@ -18,7 +24,7 @@ locals {
     },
     {
       name  = "KC_HOSTNAME"
-      value = local.keycloak_domain
+      value = local.keycloak_hostname
     },
     {
       name  = "KC_HOSTNAME_STRICT"
