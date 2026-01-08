@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import axios from 'axios';
 import {
   CpuChipIcon,
@@ -11,7 +11,6 @@ import {
   QuestionMarkCircleIcon,
   ShieldCheckIcon,
   ShieldExclamationIcon,
-  ExclamationTriangleIcon,
   GlobeAltIcon,
   LockClosedIcon,
   InformationCircleIcon,
@@ -130,7 +129,22 @@ const AgentCard: React.FC<AgentCardProps> = React.memo(({
   const [securityScanResult, setSecurityScanResult] = useState<any>(null);
   const [loadingSecurityScan, setLoadingSecurityScan] = useState(false);
 
-  const isSecurityPending = agent.tags?.includes('security-pending');
+  // Fetch security scan status on mount to show correct icon color
+  useEffect(() => {
+    const fetchSecurityScan = async () => {
+      try {
+        const headers = authToken ? { Authorization: `Bearer ${authToken}` } : undefined;
+        const response = await axios.get(
+          `/api/agents${agent.path}/security-scan`,
+          headers ? { headers } : undefined
+        );
+        setSecurityScanResult(response.data);
+      } catch {
+        // Silently ignore - no scan result available
+      }
+    };
+    fetchSecurityScan();
+  }, [agent.path, authToken]);
 
   const getStatusIcon = () => {
     switch (agent.status) {
@@ -263,21 +277,22 @@ const AgentCard: React.FC<AgentCardProps> = React.memo(({
   }, [agent.path, authToken]);
 
   const getSecurityIconState = () => {
-    if (isSecurityPending) {
-      return { Icon: ShieldCheckIcon, color: 'text-gray-400 dark:text-gray-500', title: 'Security scan pending' };
-    }
+    // Gray: no scan result yet
     if (!securityScanResult) {
       return { Icon: ShieldCheckIcon, color: 'text-gray-400 dark:text-gray-500', title: 'View security scan results' };
     }
+    // Red: scan failed or any vulnerabilities found
     if (securityScanResult.scan_failed) {
-      return { Icon: ExclamationTriangleIcon, color: 'text-red-500 dark:text-red-400', title: 'Security scan failed' };
+      return { Icon: ShieldExclamationIcon, color: 'text-red-500 dark:text-red-400', title: 'Security scan failed' };
     }
-    if (securityScanResult.critical_issues > 0 || securityScanResult.high_severity > 0) {
-      return { Icon: ExclamationTriangleIcon, color: 'text-red-500 dark:text-red-400', title: 'Security issues found' };
+    const hasVulnerabilities = securityScanResult.critical_issues > 0 ||
+      securityScanResult.high_severity > 0 ||
+      securityScanResult.medium_severity > 0 ||
+      securityScanResult.low_severity > 0;
+    if (hasVulnerabilities) {
+      return { Icon: ShieldExclamationIcon, color: 'text-red-500 dark:text-red-400', title: 'Security issues found' };
     }
-    if (securityScanResult.medium_severity > 0 || securityScanResult.low_severity > 0) {
-      return { Icon: ShieldExclamationIcon, color: 'text-amber-500 dark:text-amber-400', title: 'Security warnings' };
-    }
+    // Green: scan passed with no vulnerabilities
     return { Icon: ShieldCheckIcon, color: 'text-green-500 dark:text-green-400', title: 'Security scan passed' };
   };
 
