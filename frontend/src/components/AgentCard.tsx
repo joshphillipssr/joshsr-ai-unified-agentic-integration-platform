@@ -10,11 +10,14 @@ import {
   XCircleIcon,
   QuestionMarkCircleIcon,
   ShieldCheckIcon,
+  ShieldExclamationIcon,
+  ExclamationTriangleIcon,
   GlobeAltIcon,
   LockClosedIcon,
   InformationCircleIcon,
 } from '@heroicons/react/24/outline';
 import AgentDetailsModal from './AgentDetailsModal';
+import SecurityScanModal from './SecurityScanModal';
 import StarRatingWidget from './StarRatingWidget';
 
 /**
@@ -123,6 +126,11 @@ const AgentCard: React.FC<AgentCardProps> = React.memo(({
   const [loadingRefresh, setLoadingRefresh] = useState(false);
   const [fullAgentDetails, setFullAgentDetails] = useState<any>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
+  const [showSecurityScan, setShowSecurityScan] = useState(false);
+  const [securityScanResult, setSecurityScanResult] = useState<any>(null);
+  const [loadingSecurityScan, setLoadingSecurityScan] = useState(false);
+
+  const isSecurityPending = agent.tags?.includes('security-pending');
 
   const getStatusIcon = () => {
     switch (agent.status) {
@@ -219,9 +227,63 @@ const AgentCard: React.FC<AgentCardProps> = React.memo(({
     [onShowToast]
   );
 
+  const handleViewSecurityScan = useCallback(async () => {
+    if (loadingSecurityScan) return;
+
+    setShowSecurityScan(true);
+    setLoadingSecurityScan(true);
+    try {
+      const headers = authToken ? { Authorization: `Bearer ${authToken}` } : undefined;
+      const response = await axios.get(
+        `/api/agents${agent.path}/security-scan`,
+        headers ? { headers } : undefined
+      );
+      setSecurityScanResult(response.data);
+    } catch (error: any) {
+      if (error.response?.status !== 404) {
+        console.error('Failed to fetch security scan:', error);
+        if (onShowToast) {
+          onShowToast('Failed to load security scan results', 'error');
+        }
+      }
+      setSecurityScanResult(null);
+    } finally {
+      setLoadingSecurityScan(false);
+    }
+  }, [agent.path, authToken, loadingSecurityScan, onShowToast]);
+
+  const handleRescan = useCallback(async () => {
+    const headers = authToken ? { Authorization: `Bearer ${authToken}` } : undefined;
+    const response = await axios.post(
+      `/api/agents${agent.path}/rescan`,
+      undefined,
+      headers ? { headers } : undefined
+    );
+    setSecurityScanResult(response.data);
+  }, [agent.path, authToken]);
+
+  const getSecurityIconState = () => {
+    if (isSecurityPending) {
+      return { Icon: ShieldCheckIcon, color: 'text-gray-400 dark:text-gray-500', title: 'Security scan pending' };
+    }
+    if (!securityScanResult) {
+      return { Icon: ShieldCheckIcon, color: 'text-gray-400 dark:text-gray-500', title: 'View security scan results' };
+    }
+    if (securityScanResult.scan_failed) {
+      return { Icon: ExclamationTriangleIcon, color: 'text-red-500 dark:text-red-400', title: 'Security scan failed' };
+    }
+    if (securityScanResult.critical_issues > 0 || securityScanResult.high_severity > 0) {
+      return { Icon: ExclamationTriangleIcon, color: 'text-red-500 dark:text-red-400', title: 'Security issues found' };
+    }
+    if (securityScanResult.medium_severity > 0 || securityScanResult.low_severity > 0) {
+      return { Icon: ShieldExclamationIcon, color: 'text-amber-500 dark:text-amber-400', title: 'Security warnings' };
+    }
+    return { Icon: ShieldCheckIcon, color: 'text-green-500 dark:text-green-400', title: 'Security scan passed' };
+  };
+
   return (
     <>
-      <div className="group rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 h-full flex flex-col bg-gradient-to-br from-cyan-50 to-blue-50 dark:from-cyan-900/20 dark:to-blue-900/20 border-2 border-cyan-200 dark:border-cyan-700 hover:border-cyan-300 dark:hover-border-cyan-600">
+      <div className="group rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 h-full flex flex-col bg-gradient-to-br from-cyan-50 to-blue-50 dark:from-cyan-900/20 dark:to-blue-900/20 border-2 border-cyan-200 dark:border-cyan-700 hover:border-cyan-300 dark:hover:border-cyan-600">
         {/* Header */}
         <div className="p-5 pb-4">
           <div className="flex items-start justify-between mb-4">
@@ -286,6 +348,16 @@ const AgentCard: React.FC<AgentCardProps> = React.memo(({
                 <PencilIcon className="h-4 w-4" />
               </button>
             )}
+
+            {/* Security Scan Button */}
+            <button
+              onClick={handleViewSecurityScan}
+              className={`p-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg transition-all duration-200 flex-shrink-0 ${getSecurityIconState().color}`}
+              title={getSecurityIconState().title}
+              aria-label="View security scan results"
+            >
+              {React.createElement(getSecurityIconState().Icon, { className: "h-4 w-4" })}
+            </button>
 
             {/* Full Details Button */}
             <button
@@ -457,6 +529,18 @@ const AgentCard: React.FC<AgentCardProps> = React.memo(({
         loading={loadingDetails}
         fullDetails={fullAgentDetails}
         onCopy={handleCopyDetails}
+      />
+
+      <SecurityScanModal
+        resourceName={agent.name}
+        resourceType="agent"
+        isOpen={showSecurityScan}
+        onClose={() => setShowSecurityScan(false)}
+        loading={loadingSecurityScan}
+        scanResult={securityScanResult}
+        onRescan={canModify ? handleRescan : undefined}
+        canRescan={canModify}
+        onShowToast={onShowToast}
       />
 
     </>
