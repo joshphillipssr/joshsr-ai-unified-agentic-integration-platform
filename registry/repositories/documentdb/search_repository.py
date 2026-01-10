@@ -193,7 +193,8 @@ class DocumentDBSearchRepository(SearchRepositoryBase):
                 {
                     "name": t.get("name"),
                     "description": t.get("description"),
-                    "inputSchema": t.get("inputSchema", {}),
+                    # Support both "inputSchema" (MCP standard) and "schema" (legacy)
+                    "inputSchema": t.get("inputSchema") or t.get("schema", {}),
                 }
                 for t in server_info.get("tool_list", [])
             ],
