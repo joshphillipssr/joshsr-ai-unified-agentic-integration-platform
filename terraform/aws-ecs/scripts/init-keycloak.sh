@@ -177,13 +177,6 @@ create_clients() {
         "serviceAccountsEnabled": false,
         "publicClient": false
     }'
-        "protocol": "openid-connect",
-        "standardFlowEnabled": true,
-        "implicitFlowEnabled": false,
-        "directAccessGrantsEnabled": true,
-        "serviceAccountsEnabled": false,
-        "publicClient": false
-    }'
     
     curl -s -X POST "${KEYCLOAK_URL}/admin/realms/${REALM}/clients" \
         -H "Authorization: Bearer ${token}" \

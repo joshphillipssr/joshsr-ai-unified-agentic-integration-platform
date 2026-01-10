@@ -174,40 +174,41 @@ output "deployment_mode" {
 
 #
 # DocumentDB Cluster Outputs (from upstream v1.0.9)
+# Only populated when storage_backend = "documentdb"
 #
 
 output "documentdb_cluster_endpoint" {
   description = "DocumentDB Cluster endpoint"
-  value       = aws_docdb_cluster.registry.endpoint
+  value       = length(aws_docdb_cluster.registry) > 0 ? aws_docdb_cluster.registry[0].endpoint : null
 }
 
 output "documentdb_cluster_arn" {
   description = "DocumentDB Cluster ARN"
-  value       = aws_docdb_cluster.registry.arn
+  value       = length(aws_docdb_cluster.registry) > 0 ? aws_docdb_cluster.registry[0].arn : null
 }
 
 output "documentdb_reader_endpoint" {
   description = "DocumentDB Cluster reader endpoint"
-  value       = aws_docdb_cluster.registry.reader_endpoint
+  value       = length(aws_docdb_cluster.registry) > 0 ? aws_docdb_cluster.registry[0].reader_endpoint : null
 }
 
 output "documentdb_security_group_id" {
   description = "DocumentDB security group ID"
-  value       = aws_security_group.documentdb.id
+  value       = length(aws_security_group.documentdb) > 0 ? aws_security_group.documentdb[0].id : null
 }
 
 output "documentdb_kms_key_id" {
   description = "KMS key ID for DocumentDB encryption"
-  value       = aws_kms_key.documentdb.id
+  value       = length(aws_kms_key.documentdb) > 0 ? aws_kms_key.documentdb[0].id : null
 }
 
 output "documentdb_kms_key_arn" {
   description = "KMS key ARN for DocumentDB encryption"
-  value       = aws_kms_key.documentdb.arn
+  value       = length(aws_kms_key.documentdb) > 0 ? aws_kms_key.documentdb[0].arn : null
 }
 
 output "documentdb_secrets_manager_secret_arn" {
   description = "Secrets Manager secret ARN for DocumentDB credentials"
-  value       = aws_secretsmanager_secret.documentdb_credentials.arn
+  value       = length(aws_secretsmanager_secret.documentdb_credentials) > 0 ? aws_secretsmanager_secret.documentdb_credentials[0].arn : null
   sensitive   = true
 }

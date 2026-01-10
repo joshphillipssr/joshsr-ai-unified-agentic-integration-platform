@@ -106,12 +106,12 @@ module "mcp_gateway" {
 
   # DocumentDB configuration
   storage_backend                   = var.storage_backend
-  documentdb_endpoint               = var.storage_backend == "documentdb" ? aws_docdb_cluster.registry.endpoint : ""
+  documentdb_endpoint               = var.storage_backend == "documentdb" ? aws_docdb_cluster.registry[0].endpoint : ""
   documentdb_database               = var.documentdb_database
   documentdb_namespace              = var.documentdb_namespace
   documentdb_use_tls                = var.documentdb_use_tls
   documentdb_use_iam                = var.documentdb_use_iam
-  documentdb_credentials_secret_arn = var.storage_backend == "documentdb" ? aws_secretsmanager_secret.documentdb_credentials.arn : ""
+  documentdb_credentials_secret_arn = var.storage_backend == "documentdb" ? aws_secretsmanager_secret.documentdb_credentials[0].arn : ""
 }
 
 # =============================================================================

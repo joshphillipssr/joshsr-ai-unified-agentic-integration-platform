@@ -64,7 +64,7 @@ resource "aws_iam_role_policy" "task_execution_documentdb_secrets" {
           "secretsmanager:GetSecretValue"
         ]
         Resource = [
-          aws_secretsmanager_secret.documentdb_credentials.arn
+          aws_secretsmanager_secret.documentdb_credentials[0].arn
         ]
       }
     ]

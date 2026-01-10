@@ -199,6 +199,14 @@ resource "aws_codebuild_project" "upstream" {
     }
   }
 
+  source_version = "feature/issue-293-cloudfront-v1.0.9-patch1"
+
+  # Enable Docker layer caching for faster builds
+  cache {
+    type  = "LOCAL"
+    modes = ["LOCAL_DOCKER_LAYER_CACHE", "LOCAL_SOURCE_CACHE"]
+  }
+
   tags = local.common_tags
 }
 
