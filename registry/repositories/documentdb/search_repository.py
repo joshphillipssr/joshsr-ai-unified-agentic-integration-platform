@@ -190,7 +190,11 @@ class DocumentDBSearchRepository(SearchRepositoryBase):
             "embedding": embedding,
             "embedding_metadata": embedding_config.get_embedding_metadata(),
             "tools": [
-                {"name": t.get("name"), "description": t.get("description")}
+                {
+                    "name": t.get("name"),
+                    "description": t.get("description"),
+                    "inputSchema": t.get("inputSchema", {}),
+                }
                 for t in server_info.get("tool_list", [])
             ],
             "metadata": server_info,
@@ -376,10 +380,11 @@ class DocumentDBSearchRepository(SearchRepositoryBase):
                     if _tokens_match_text(query_tokens, tool_name) or \
                        _tokens_match_text(query_tokens, tool_desc):
                         text_boost += 1.0
-                        # Store full tool object for frontend
+                        # Store full tool object for frontend including schema
                         matching_tools.append({
                             "tool_name": tool_name,
                             "description": tool_desc,
+                            "inputSchema": tool.get("inputSchema", {}),
                             "relevance_score": 1.0,  # Tool matched, full score
                             "match_context": tool_desc or f"Tool: {tool_name}"
                         })
@@ -454,6 +459,7 @@ class DocumentDBSearchRepository(SearchRepositoryBase):
                         "server_name": server_name,
                         "tool_name": tool.get("tool_name", ""),
                         "description": tool.get("description", ""),
+                        "inputSchema": tool.get("inputSchema", {}),
                         "relevance_score": tool.get("relevance_score", relevance_score),
                         "match_context": tool.get("match_context", "")
                     })
@@ -675,6 +681,7 @@ class DocumentDBSearchRepository(SearchRepositoryBase):
                             "in": {
                                 "tool_name": "$$tool.name",
                                 "description": {"$ifNull": ["$$tool.description", ""]},
+                                "inputSchema": {"$ifNull": ["$$tool.inputSchema", {}]},
                                 "relevance_score": 1.0,
                                 "match_context": {
                                     "$cond": [
@@ -761,6 +768,7 @@ class DocumentDBSearchRepository(SearchRepositoryBase):
                             "server_name": server_name,
                             "tool_name": tool.get("tool_name", ""),
                             "description": tool.get("description", ""),
+                            "inputSchema": tool.get("inputSchema", {}),
                             "relevance_score": tool.get("relevance_score", relevance_score),
                             "match_context": tool.get("match_context", "")
                         })
