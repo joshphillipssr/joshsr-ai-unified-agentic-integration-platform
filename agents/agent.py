@@ -79,9 +79,6 @@ from registry_client import (
     _format_tool_result,
 )
 
-# Global config for servers that should not have /mcp suffix added
-SERVERS_NO_MCP_SUFFIX = ['/atlassian']
-
 # Configure logging with basicConfig
 logging.basicConfig(
     level=logging.INFO,  # Set the log level to INFO
@@ -405,16 +402,13 @@ async def search_registry_tools(
         results = []
 
         # Process tool results first (most specific)
+        # The search API now returns inputSchema directly, no need for get_server_info
         for tool_result in search_response.tools:
-            # Get additional server info for transport and auth details
-            server_info = await registry_client.get_server_info(tool_result.server_path)
-            formatted = _format_tool_result(tool_result, server_info)
+            formatted = _format_tool_result(tool_result)
             results.append(formatted)
 
         # Also include matching tools from server results
         for server_result in search_response.servers:
-            server_info = await registry_client.get_server_info(server_result.path)
-
             for matching_tool in server_result.matching_tools:
                 # Check if this tool is already in results
                 existing = [
@@ -431,21 +425,12 @@ async def search_registry_tools(
                     "server_name": server_result.server_name,
                     "description": matching_tool.description or "No description available",
                     "relevance_score": matching_tool.relevance_score,
+                    "supported_transports": ["streamable_http"],
                 }
 
-                if server_info:
-                    tool_data["supported_transports"] = server_info.get(
-                        "supported_transports",
-                        ["streamable_http"]
-                    )
-                    tool_data["auth_provider"] = server_info.get("auth_provider")
-
-                    # Find tool schema in server info
-                    tools_list = server_info.get("tools", [])
-                    for srv_tool in tools_list:
-                        if srv_tool.get("name") == matching_tool.tool_name:
-                            tool_data["tool_schema"] = srv_tool.get("inputSchema", {})
-                            break
+                # Use inputSchema from matching tool if available
+                if matching_tool.inputSchema:
+                    tool_data["tool_schema"] = matching_tool.inputSchema
 
                 results.append(tool_data)
 
@@ -647,16 +632,8 @@ async def invoke_mcp_tool(
             server_url += 'sse'
             logger.info(f"invoke_mcp_tool, Using SSE transport with gateway URL: {server_url}")
         else:
-            if not server_url.endswith('/'):
-                server_url += '/'
-            
-            # Check if this server should skip the /mcp suffix
-            server_path = '/' + server_name.strip('/')
-            if server_path not in SERVERS_NO_MCP_SUFFIX:
-                server_url += 'mcp'
-                logger.info(f"invoke_mcp_tool, Using streamable_http transport with gateway URL: {server_url}")
-            else:
-                logger.info(f"invoke_mcp_tool, Using streamable_http transport without /mcp suffix for {server_name}: {server_url}")
+            # Don't add /mcp suffix - the gateway routes to the MCP endpoint directly
+            logger.info(f"invoke_mcp_tool, Using streamable_http transport with gateway URL: {server_url}")
         
         # Connect to MCP server and execute tool call
         logger.info(f"invoke_mcp_tool, Connecting to MCP server using {transport_name}: {server_url}, headers: {redacted_headers}")

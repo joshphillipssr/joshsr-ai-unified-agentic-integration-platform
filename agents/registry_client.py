@@ -304,14 +304,14 @@ class RegistryClient:
 
 def _format_tool_result(
     tool: ToolSearchResult,
-    server_info: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     Format a tool search result for display to the agent.
 
+    The search API returns inputSchema directly, so no additional server lookup is needed.
+
     Args:
         tool: Tool search result
-        server_info: Optional server information for additional details
 
     Returns:
         Formatted tool information dict
@@ -322,25 +322,12 @@ def _format_tool_result(
         "server_name": tool.server_name,
         "description": tool.description or "No description available",
         "relevance_score": tool.relevance_score,
+        "supported_transports": ["streamable_http"],
     }
 
     # Use inputSchema from search result if available
     if tool.inputSchema:
         result["tool_schema"] = tool.inputSchema
-
-    # Add server info if available
-    if server_info:
-        result["supported_transports"] = server_info.get("supported_transports", ["streamable_http"])
-        result["auth_provider"] = server_info.get("auth_provider")
-
-        # Look for additional tool info in server info (only if not already set from search)
-        if "tool_schema" not in result:
-            tools_list = server_info.get("tools", [])
-            for srv_tool in tools_list:
-                if srv_tool.get("name") == tool.tool_name:
-                    result["tool_schema"] = srv_tool.get("inputSchema", {})
-                    result["tool_parsed_description"] = srv_tool.get("parsed_description", {})
-                    break
 
     return result
 
