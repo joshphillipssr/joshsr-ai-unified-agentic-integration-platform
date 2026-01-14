@@ -687,6 +687,11 @@ create_users() {
     local lob1_username="lob1-user"
     local lob2_username="lob2-user"
     
+    # Get registry-admins group ID for admin user
+    local registry_admins_group_id=$(curl -s -H "Authorization: Bearer ${token}" \
+        "${KEYCLOAK_URL}/admin/realms/${REALM}/groups" 2>/dev/null | \
+        jq -r 'if type == "array" then (.[] | select(.name=="registry-admins") | .id) else empty end' 2>/dev/null)
+    
     # Assign admin user to admin group and unrestricted servers group
     if [ ! -z "$admin_user_id" ] && [ ! -z "$admin_group_id" ]; then
         curl -s -X PUT "${KEYCLOAK_URL}/admin/realms/${REALM}/users/$admin_user_id/groups/$admin_group_id" \
@@ -699,6 +704,13 @@ create_users() {
         curl -s -X PUT "${KEYCLOAK_URL}/admin/realms/${REALM}/users/$admin_user_id/groups/$unrestricted_group_id" \
             -H "Authorization: Bearer ${token}" > /dev/null
         echo "  - $admin_username assigned to mcp-servers-unrestricted group"
+    fi
+    
+    # Assign admin to registry-admins group for full UI permissions
+    if [ ! -z "$admin_user_id" ] && [ ! -z "$registry_admins_group_id" ]; then
+        curl -s -X PUT "${KEYCLOAK_URL}/admin/realms/${REALM}/users/$admin_user_id/groups/$registry_admins_group_id" \
+            -H "Authorization: Bearer ${token}" > /dev/null
+        echo "  - $admin_username assigned to registry-admins group"
     fi
     
     # Assign test user to all groups except admin

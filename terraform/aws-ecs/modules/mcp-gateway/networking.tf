@@ -58,42 +58,40 @@ module "alb" {
     }
   }
 
-  listeners = merge(
-    {
-      http = {
-        port     = 80
-        protocol = "HTTP"
-        forward = {
-          target_group_key = "registry"
-        }
+  listeners = {
+    http = {
+      port     = 80
+      protocol = "HTTP"
+      forward = {
+        target_group_key = "registry"
       }
-      auth = {
-        port            = 8888
-        protocol        = var.certificate_arn != "" ? "HTTPS" : "HTTP"
-        certificate_arn = var.certificate_arn != "" ? var.certificate_arn : null
-        forward = {
-          target_group_key = "auth"
-        }
+    }
+    https = {
+      port            = 443
+      protocol        = "HTTPS"
+      certificate_arn = var.certificate_arn
+      ssl_policy      = "ELBSecurityPolicy-TLS13-1-2-2021-06"
+      forward = {
+        target_group_key = "registry"
       }
-      gradio = {
-        port     = 7860
-        protocol = "HTTP"
-        forward = {
-          target_group_key = "gradio"
-        }
+    }
+    auth = {
+      port            = 8888
+      protocol        = "HTTPS"
+      certificate_arn = var.certificate_arn
+      ssl_policy      = "ELBSecurityPolicy-TLS13-1-2-2021-06"
+      forward = {
+        target_group_key = "auth"
       }
-    },
-    var.certificate_arn != "" ? {
-      https = {
-        port            = 443
-        protocol        = "HTTPS"
-        certificate_arn = var.certificate_arn
-        forward = {
-          target_group_key = "registry"
-        }
+    }
+    gradio = {
+      port     = 7860
+      protocol = "HTTP"
+      forward = {
+        target_group_key = "gradio"
       }
-    } : {}
-  )
+    }
+  }
 
   target_groups = {
     registry = {
