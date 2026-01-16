@@ -15,6 +15,45 @@ data "aws_ec2_managed_prefix_list" "cloudfront" {
   name  = var.cloudfront_prefix_list_name
 }
 
+# Separate security group for CloudFront prefix list ingress
+# This avoids hitting the 60 rules per security group limit since the CloudFront
+# prefix list has ~55 reserved entries that count against the quota
+resource "aws_security_group" "alb_cloudfront" {
+  count       = var.cloudfront_prefix_list_name != "" ? 1 : 0
+  name        = "${local.name_prefix}-alb-cloudfront"
+  description = "Security group for CloudFront access to MCP Gateway ALB"
+  vpc_id      = var.vpc_id
+
+  tags = merge(
+    local.common_tags,
+    {
+      Name = "${local.name_prefix}-alb-cloudfront"
+    }
+  )
+}
+
+resource "aws_security_group_rule" "alb_cloudfront_ingress_http" {
+  count             = var.cloudfront_prefix_list_name != "" ? 1 : 0
+  description       = "Ingress from CloudFront prefix list to ALB (HTTP)"
+  type              = "ingress"
+  from_port         = 80
+  to_port           = 80
+  protocol          = "tcp"
+  prefix_list_ids   = [data.aws_ec2_managed_prefix_list.cloudfront[0].id]
+  security_group_id = aws_security_group.alb_cloudfront[0].id
+}
+
+resource "aws_security_group_rule" "alb_cloudfront_egress" {
+  count             = var.cloudfront_prefix_list_name != "" ? 1 : 0
+  description       = "Egress to all"
+  type              = "egress"
+  from_port         = 0
+  to_port           = 0
+  protocol          = "-1"
+  cidr_blocks       = ["0.0.0.0/0"]
+  security_group_id = aws_security_group.alb_cloudfront[0].id
+}
+
 # Main Application Load Balancer (for registry, auth, gradio)
 module "alb" {
   source  = "terraform-aws-modules/alb/aws"
@@ -28,50 +67,41 @@ module "alb" {
   vpc_id  = var.vpc_id
   subnets = var.alb_scheme == "internal" ? var.private_subnet_ids : var.public_subnet_ids
 
+  # Attach additional security groups (CloudFront SG when enabled)
+  # This keeps CloudFront prefix list rules in a separate SG to avoid the 60 rules/SG limit
+  security_groups = var.cloudfront_prefix_list_name != "" ? [aws_security_group.alb_cloudfront[0].id] : []
+
   # Security Groups
   # Create dynamic ingress rules for each CIDR block and port combination
-  security_group_ingress_rules = merge(
-    # CIDR-based rules
-    merge([
-      for idx, cidr in var.ingress_cidr_blocks : {
-        "http_${idx}" = {
-          from_port   = 80
-          to_port     = 80
-          ip_protocol = "tcp"
-          cidr_ipv4   = cidr
-        }
-        "https_${idx}" = {
-          from_port   = 443
-          to_port     = 443
-          ip_protocol = "tcp"
-          cidr_ipv4   = cidr
-        }
-        "auth_port_${idx}" = {
-          from_port   = 8888
-          to_port     = 8888
-          ip_protocol = "tcp"
-          cidr_ipv4   = cidr
-        }
-        "gradio_port_${idx}" = {
-          from_port   = 7860
-          to_port     = 7860
-          ip_protocol = "tcp"
-          cidr_ipv4   = cidr
-        }
+  # Note: CloudFront prefix list is in a separate SG (alb_cloudfront) to avoid rules limit
+  security_group_ingress_rules = merge([
+    for idx, cidr in var.ingress_cidr_blocks : {
+      "http_${idx}" = {
+        from_port   = 80
+        to_port     = 80
+        ip_protocol = "tcp"
+        cidr_ipv4   = cidr
       }
-    ]...),
-    # Prefix list rules (optional, for CloudFront or other CDN)
-    # Default prefix list is AWS CloudFront origin-facing IPs
-    var.cloudfront_prefix_list_name != "" ? {
-      "prefix_list_http" = {
-        from_port       = 80
-        to_port         = 80
-        ip_protocol     = "tcp"
-        prefix_list_id  = data.aws_ec2_managed_prefix_list.cloudfront[0].id
-        description     = "Ingress from prefix list (default: CloudFront origin-facing IPs)"
+      "https_${idx}" = {
+        from_port   = 443
+        to_port     = 443
+        ip_protocol = "tcp"
+        cidr_ipv4   = cidr
       }
-    } : {}
-  )
+      "auth_port_${idx}" = {
+        from_port   = 8888
+        to_port     = 8888
+        ip_protocol = "tcp"
+        cidr_ipv4   = cidr
+      }
+      "gradio_port_${idx}" = {
+        from_port   = 7860
+        to_port     = 7860
+        ip_protocol = "tcp"
+        cidr_ipv4   = cidr
+      }
+    }
+  ]...)
   security_group_egress_rules = {
     all = {
       ip_protocol = "-1"
