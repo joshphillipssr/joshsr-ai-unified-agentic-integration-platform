@@ -2436,12 +2436,32 @@ async def generate_user_token(
                 status_code=400, detail="requested_scopes must be a list of strings"
             )
 
+        # Get full session data to include stored OAuth tokens
+        from ..auth.dependencies import get_user_session_data
+        try:
+            session_cookie = request.cookies.get(settings.session_cookie_name)
+            logger.info(f"Session cookie present: {bool(session_cookie)}")
+            session_data = get_user_session_data(session_cookie)
+            logger.info(
+                f"Session data extracted: auth_method={session_data.get('auth_method')}, "
+                f"provider={session_data.get('provider')}, "
+                f"has_access_token={bool(session_data.get('access_token'))}, "
+                f"has_refresh_token={bool(session_data.get('refresh_token'))}"
+            )
+        except Exception as e:
+            logger.warning(f"Could not get session data for tokens: {e}")
+            session_data = {}
+
         # Prepare request to auth server
+        # Include user identity info for self-signed JWT generation
         auth_request = {
             "user_context": {
                 "username": user_context["username"],
+                "email": user_context.get("email", session_data.get("email", "")),
                 "scopes": user_context["scopes"],
                 "groups": user_context["groups"],
+                "provider": user_context.get("provider", session_data.get("provider")),
+                "auth_method": user_context.get("auth_method", session_data.get("auth_method")),
             },
             "requested_scopes": requested_scopes,
             "expires_in_hours": expires_in_hours,

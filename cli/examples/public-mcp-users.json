@@ -38,6 +38,11 @@
       "tools": []
     },
     {
+      "server": "v0.1",
+      "methods": ["agents", "GET", "POST"],
+      "tools": []
+    },
+    {
       "agents": {
         "actions": [
           {

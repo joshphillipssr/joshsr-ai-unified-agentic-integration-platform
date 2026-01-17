@@ -98,7 +98,12 @@ def _initiate_device_code_flow(
     }
 
     response = requests.post(device_code_url, data=data, timeout=10)
-    response.raise_for_status()
+
+    if response.status_code != 200:
+        error_data = response.json()
+        error_desc = error_data.get('error_description', error_data.get('error', 'Unknown error'))
+        logger.error(f"Device code request failed: {error_desc}")
+        raise ValueError(f"Device code flow not available: {error_desc}")
 
     return response.json()
 

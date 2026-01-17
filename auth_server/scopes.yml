@@ -89,6 +89,18 @@ UI-Scopes:
     - currenttime
     - mcpgw
 
+  # Public MCP Users: Access to public MCP servers (context7, cloudflare-docs) and flight-booking agent
+  public-mcp-users:
+    list_agents:
+    - /flight-booking
+    get_agent:
+    - /flight-booking
+    list_service:
+    - all
+    health_check_service:
+    - context7
+    - cloudflare-docs
+
   # LOB2 (Line of Business 2): Restricted to data-analysis and security-analyzer agents
   registry-users-lob2:
     list_agents:
@@ -125,6 +137,10 @@ group_mappings:
   - registry-admins
   - mcp-servers-unrestricted/read
   - mcp-servers-unrestricted/execute
+
+  # public-mcp-users group Object ID from Azure AD
+  "5f605d68-06bc-4208-b992-bb378eee12c5":
+  - public-mcp-users
 
   # Add additional Entra ID group mappings here:
   # "your-lob1-group-object-id":
@@ -305,3 +321,68 @@ registry-admins:
     - action: delete_agent
       resources:
       - all
+
+# Public MCP Users: Access to public MCP servers and flight-booking agent
+public-mcp-users:
+- server: api
+  methods:
+  - initialize
+  - GET
+  - POST
+  - servers
+  - agents
+  - search
+  - rating
+  - tools
+  - tokens
+  tools: []
+- server: v0.1
+  methods:
+  - agents
+  - GET
+  - POST
+  tools: []
+- server: context7
+  methods:
+  - initialize
+  - tools/list
+  - tools/call
+  tools: '*'
+- server: /context7
+  methods:
+  - initialize
+  - tools/list
+  - tools/call
+  tools: '*'
+- server: /context7/
+  methods:
+  - initialize
+  - tools/list
+  - tools/call
+  tools: '*'
+- server: cloudflare-docs
+  methods:
+  - initialize
+  - tools/list
+  - tools/call
+  tools: '*'
+- server: /cloudflare-docs
+  methods:
+  - initialize
+  - tools/list
+  - tools/call
+  tools: '*'
+- server: /cloudflare-docs/
+  methods:
+  - initialize
+  - tools/list
+  - tools/call
+  tools: '*'
+- agents:
+    actions:
+    - action: list_agents
+      resources:
+      - /flight-booking
+    - action: get_agent
+      resources:
+      - /flight-booking
