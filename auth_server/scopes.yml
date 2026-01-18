@@ -1,8 +1,8 @@
-# Scopes Configuration for MCP Gateway Registry - Microsoft Entra ID
+# Scopes Configuration for MCP Gateway Registry
 #
 # This file defines three main top-level groups:
 # 1. UI-Scopes: Agent registry permissions (list, get, publish, modify, delete agents) and MCP service access
-# 2. group_mappings: Maps Entra ID group Object IDs to scope names
+# 2. group_mappings: Maps IdP groups to scope names (supports both Keycloak group names and Entra ID Object IDs)
 # 3. Individual group scopes: Detailed MCP server method/tool access for each group
 #
 # Each group has two types of permissions:
@@ -11,10 +11,10 @@
 #
 # To add a new group, follow these three steps:
 # 1. Add to UI-Scopes: Define agent and service permissions (what agents/services the group can access)
-# 2. Add to group_mappings: Map the Entra ID group Object ID to the internal scope name
+# 2. Add to group_mappings: Map the IdP group identifier to the internal scope name
+#    - For Keycloak: Use the group name (e.g., "registry-admins")
+#    - For Entra ID: Use the Azure AD Group Object ID (e.g., "4c46ec66-a4f7-4b62-9095-b7958662f4b6")
 # 3. Add individual group scope entry: Define detailed MCP server methods/tools and agent actions for the group
-#
-# IMPORTANT: For Entra ID, group_mappings use Azure AD Group Object IDs instead of group names
 
 # ==================== UI-SCOPES ====================
 # Define agent registry permissions and service listing rights for each group
@@ -128,11 +128,35 @@ UI-Scopes:
     - fininfo
 
 # ==================== GROUP MAPPINGS ====================
-# Maps Entra ID group Object IDs to internal scope group names
-# IMPORTANT: Use Azure AD Group Object IDs (GUIDs), not group names
+# Maps IdP groups to internal scope group names
+# This section supports BOTH Keycloak (group names) and Entra ID (Object IDs)
+#
+# Keycloak: Uses group names directly (e.g., "registry-admins")
+# Entra ID: Uses Azure AD Group Object IDs (GUIDs) from Azure Portal -> Groups -> [group] -> Object Id
+
 group_mappings:
+  # ----- Keycloak Group Mappings (group names) -----
+  mcp-registry-admin:
+  - mcp-registry-admin
+  - mcp-servers-unrestricted/read
+  - mcp-servers-unrestricted/execute
+
+  registry-admins:
+  - registry-admins
+  - mcp-servers-unrestricted/read
+  - mcp-servers-unrestricted/execute
+
+  registry-users-lob1:
+  - registry-users-lob1
+
+  registry-users-lob2:
+  - registry-users-lob2
+
+  public-mcp-users:
+  - public-mcp-users
+
+  # ----- Entra ID Group Mappings (Azure AD Object IDs) -----
   # registry-admins group Object ID from Azure AD
-  # Get this from: Azure Portal -> Groups -> [group name] -> Object Id
   "4c46ec66-a4f7-4b62-9095-b7958662f4b6":
   - registry-admins
   - mcp-servers-unrestricted/read
@@ -142,7 +166,7 @@ group_mappings:
   "5f605d68-06bc-4208-b992-bb378eee12c5":
   - public-mcp-users
 
-  # Add additional Entra ID group mappings here:
+  # Add additional Entra ID group mappings here as needed:
   # "your-lob1-group-object-id":
   # - registry-users-lob1
   #
