@@ -353,6 +353,240 @@ class ServerService:
 
         return result
 
+    async def add_server_version(
+        self,
+        path: str,
+        version: str,
+        proxy_pass_url: str,
+        status: str = "stable",
+        is_default: bool = False
+    ) -> bool:
+        """
+        Add a new version to an existing server.
+
+        Args:
+            path: Server path (e.g., "/context7")
+            version: Version identifier (e.g., "v2.0.0")
+            proxy_pass_url: Backend URL for this version
+            status: Version status (stable, deprecated, beta)
+            is_default: Set this as the default version
+
+        Returns:
+            True if version added successfully
+
+        Raises:
+            ValueError: If server not found or version already exists
+        """
+        server_info = await self._repo.get(path)
+        if not server_info:
+            raise ValueError(f"Server not found: {path}")
+
+        # Initialize versions list if this is first multi-version setup
+        versions = server_info.get("versions") or []
+
+        if not versions:
+            # Migrate existing single-version to versions list
+            current_url = server_info.get("proxy_pass_url")
+            if current_url:
+                versions.append({
+                    "version": "v1.0.0",
+                    "proxy_pass_url": current_url,
+                    "status": "stable",
+                    "is_default": not is_default
+                })
+                if not is_default:
+                    server_info["default_version"] = "v1.0.0"
+
+        # Check if version already exists
+        existing_versions = [v["version"] for v in versions]
+        if version in existing_versions:
+            raise ValueError(f"Version {version} already exists for server {path}")
+
+        # Create new version entry
+        new_version = {
+            "version": version,
+            "proxy_pass_url": proxy_pass_url,
+            "status": status,
+            "is_default": is_default
+        }
+        versions.append(new_version)
+
+        # Update default if requested
+        if is_default:
+            server_info["default_version"] = version
+            for v in versions:
+                v["is_default"] = (v["version"] == version)
+
+        server_info["versions"] = versions
+
+        # Save to repository
+        result = await self._repo.update(path, server_info)
+
+        if result:
+            # Regenerate nginx config
+            await self._regenerate_nginx_config()
+            logger.info(f"Added version {version} to server {path}")
+
+        return result
+
+    async def remove_server_version(
+        self,
+        path: str,
+        version: str
+    ) -> bool:
+        """
+        Remove a version from a server.
+
+        Args:
+            path: Server path
+            version: Version to remove
+
+        Returns:
+            True if version removed successfully
+
+        Raises:
+            ValueError: If server not found, version not found, or trying to remove default
+        """
+        server_info = await self._repo.get(path)
+        if not server_info:
+            raise ValueError(f"Server not found: {path}")
+
+        versions = server_info.get("versions") or []
+        if not versions:
+            raise ValueError(f"Server {path} has no versions to remove")
+
+        # Check if version exists
+        version_exists = any(v["version"] == version for v in versions)
+        if not version_exists:
+            raise ValueError(f"Version {version} not found for server {path}")
+
+        # Cannot remove default version
+        if server_info.get("default_version") == version:
+            raise ValueError(
+                f"Cannot remove default version {version}. "
+                "Set a new default version first."
+            )
+
+        # Remove the version
+        server_info["versions"] = [
+            v for v in versions if v["version"] != version
+        ]
+
+        result = await self._repo.update(path, server_info)
+
+        if result:
+            await self._regenerate_nginx_config()
+            logger.info(f"Removed version {version} from server {path}")
+
+        return result
+
+    async def set_default_version(
+        self,
+        path: str,
+        version: str
+    ) -> bool:
+        """
+        Set the default (latest) version for a server.
+
+        Args:
+            path: Server path
+            version: Version to set as default
+
+        Returns:
+            True if default updated successfully
+
+        Raises:
+            ValueError: If server or version not found
+        """
+        server_info = await self._repo.get(path)
+        if not server_info:
+            raise ValueError(f"Server not found: {path}")
+
+        versions = server_info.get("versions") or []
+        if not versions:
+            raise ValueError(f"Server {path} has no versions configured")
+
+        # Verify version exists
+        version_exists = any(v["version"] == version for v in versions)
+        if not version_exists:
+            available = [v["version"] for v in versions]
+            raise ValueError(
+                f"Version {version} not found. Available: {available}"
+            )
+
+        # Update default
+        server_info["default_version"] = version
+        for v in versions:
+            v["is_default"] = (v["version"] == version)
+
+        result = await self._repo.update(path, server_info)
+
+        if result:
+            await self._regenerate_nginx_config()
+            logger.info(f"Set default version to {version} for server {path}")
+
+        return result
+
+    async def get_server_versions(
+        self,
+        path: str
+    ) -> Dict[str, Any]:
+        """
+        Get all versions for a server.
+
+        Args:
+            path: Server path
+
+        Returns:
+            Dictionary with version information
+
+        Raises:
+            ValueError: If server not found
+        """
+        server_info = await self._repo.get(path)
+        if not server_info:
+            raise ValueError(f"Server not found: {path}")
+
+        versions = server_info.get("versions") or []
+
+        if not versions:
+            # Single-version server - return current as v1.0.0
+            return {
+                "path": path,
+                "default_version": "v1.0.0",
+                "versions": [{
+                    "version": "v1.0.0",
+                    "proxy_pass_url": server_info.get("proxy_pass_url"),
+                    "status": "stable",
+                    "is_default": True
+                }]
+            }
+
+        return {
+            "path": path,
+            "default_version": server_info.get("default_version"),
+            "versions": versions
+        }
+
+    async def _regenerate_nginx_config(self) -> None:
+        """Regenerate nginx configuration for all enabled servers."""
+        try:
+            from ..core.nginx_service import nginx_service
+
+            enabled_servers = {}
+            for service_path in await self.get_enabled_services():
+                server_info = await self.get_server_info(service_path)
+                if server_info:
+                    enabled_servers[service_path] = server_info
+
+            nginx_service.generate_config(enabled_servers)
+            nginx_service.reload_nginx()
+            logger.info("Regenerated nginx config after version change")
+
+        except Exception as e:
+            logger.error(f"Failed to regenerate nginx configuration: {e}")
+            raise
+
 
 # Global service instance
 server_service = ServerService()

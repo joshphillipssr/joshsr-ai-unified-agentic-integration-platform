@@ -4091,7 +4091,183 @@ async def get_servers_json(
                     "last_checked_iso": health_data["last_checked_iso"],
                     "mcp_endpoint": server_info.get("mcp_endpoint"),
                     "metadata": server_info.get("metadata", {}),
+                    "versions": server_info.get("versions"),
+                    "default_version": server_info.get("default_version"),
                 }
             )
 
     return {"servers": service_data}
+
+
+# ============================================================================
+# Server Version Management Endpoints
+# ============================================================================
+
+class ServerVersionCreate(BaseModel):
+    """Request model for adding a server version."""
+    version: str
+    proxy_pass_url: str
+    status: str = "stable"
+    is_default: bool = False
+
+
+class SetDefaultVersion(BaseModel):
+    """Request model for setting default version."""
+    version: str
+
+
+@router.post("/servers/{service_path:path}/versions")
+async def add_server_version(
+    service_path: str,
+    version_data: ServerVersionCreate,
+    user_context: dict = Depends(enhanced_auth),
+):
+    """
+    Add a new version to an existing server.
+
+    Args:
+        service_path: Server path (URL encoded)
+        version_data: Version configuration
+
+    Returns:
+        Success message with version info
+    """
+    # Decode path
+    decoded_path = "/" + service_path if not service_path.startswith("/") else service_path
+
+    try:
+        result = await server_service.add_server_version(
+            path=decoded_path,
+            version=version_data.version,
+            proxy_pass_url=version_data.proxy_pass_url,
+            status=version_data.status,
+            is_default=version_data.is_default
+        )
+
+        if result:
+            return {
+                "status": "success",
+                "message": f"Version {version_data.version} added to {decoded_path}",
+                "version": version_data.version
+            }
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to add version"
+            )
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+
+@router.delete("/servers/{service_path:path}/versions/{version}")
+async def remove_server_version(
+    service_path: str,
+    version: str,
+    user_context: dict = Depends(enhanced_auth),
+):
+    """
+    Remove a version from a server.
+
+    Args:
+        service_path: Server path (URL encoded)
+        version: Version to remove
+
+    Returns:
+        Success message
+    """
+    decoded_path = "/" + service_path if not service_path.startswith("/") else service_path
+
+    try:
+        result = await server_service.remove_server_version(
+            path=decoded_path,
+            version=version
+        )
+
+        if result:
+            return {
+                "status": "success",
+                "message": f"Version {version} removed from {decoded_path}"
+            }
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to remove version"
+            )
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+
+@router.put("/servers/{service_path:path}/versions/default")
+async def set_default_version(
+    service_path: str,
+    version_data: SetDefaultVersion,
+    user_context: dict = Depends(enhanced_auth),
+):
+    """
+    Set the default (latest) version for a server.
+
+    Args:
+        service_path: Server path (URL encoded)
+        version_data: Contains version to set as default
+
+    Returns:
+        Success message
+    """
+    decoded_path = "/" + service_path if not service_path.startswith("/") else service_path
+
+    try:
+        result = await server_service.set_default_version(
+            path=decoded_path,
+            version=version_data.version
+        )
+
+        if result:
+            return {
+                "status": "success",
+                "message": f"Default version set to {version_data.version} for {decoded_path}"
+            }
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to set default version"
+            )
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+
+@router.get("/servers/{service_path:path}/versions")
+async def get_server_versions(
+    service_path: str,
+    user_context: dict = Depends(enhanced_auth),
+):
+    """
+    Get all versions for a server.
+
+    Args:
+        service_path: Server path (URL encoded)
+
+    Returns:
+        Version information
+    """
+    decoded_path = "/" + service_path if not service_path.startswith("/") else service_path
+
+    try:
+        return await server_service.get_server_versions(decoded_path)
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
