@@ -148,6 +148,11 @@ module "mcp_gateway" {
   # Deployment mode configuration
   deployment_mode = var.deployment_mode
   registry_mode   = var.registry_mode
+
+  # Observability configuration
+  enable_observability       = var.enable_observability
+  metrics_service_image_uri  = var.metrics_service_image_uri
+  grafana_image_uri          = var.grafana_image_uri
 }
 
 # =============================================================================
