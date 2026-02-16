@@ -1,5 +1,5 @@
 # Observability Pipeline for MCP Gateway Registry
-# Creates: AMP workspace, metrics-service, ADOT collector, Grafana OSS
+# Creates: AMP workspace, metrics-service (with ADOT sidecar), Grafana OSS
 # All resources gated by var.enable_observability
 
 # =============================================================================
@@ -17,7 +17,7 @@ locals {
   amp_query_endpoint        = var.enable_observability ? aws_prometheus_workspace.mcp[0].prometheus_endpoint : ""
 
   # ADOT collector configuration (embedded YAML)
-  # Scrapes Prometheus metrics from metrics-service:9465 and remote-writes to AMP
+  # ADOT runs as a sidecar in the metrics-service task, scrapes localhost:9465
   adot_config = var.enable_observability ? yamlencode({
     receivers = {
       prometheus = {
@@ -32,7 +32,7 @@ locals {
               metrics_path    = "/metrics"
               static_configs = [
                 {
-                  targets = ["metrics-service.${local.name_prefix}.local:9465"]
+                  targets = ["localhost:9465"]
                 }
               ]
             }
@@ -52,9 +52,12 @@ locals {
       sigv4auth = {
         region = data.aws_region.current.id
       }
+      health_check = {
+        endpoint = "0.0.0.0:13133"
+      }
     }
     service = {
-      extensions = ["sigv4auth"]
+      extensions = ["sigv4auth", "health_check"]
       pipelines = {
         metrics = {
           receivers = ["prometheus"]
@@ -77,8 +80,8 @@ module "ecs_service_metrics" {
 
   name        = "${local.name_prefix}-metrics-service"
   cluster_arn = var.ecs_cluster_arn
-  cpu         = 256
-  memory      = 512
+  cpu         = 512
+  memory      = 1024
 
   desired_count    = 1
   enable_autoscaling = false
@@ -103,18 +106,21 @@ module "ecs_service_metrics" {
   tasks_iam_role_policies = {
     SecretsManagerAccess = aws_iam_policy.ecs_secrets_access.arn
     EcsExecTask          = aws_iam_policy.ecs_exec_task.arn
+    AMPRemoteWrite       = aws_iam_policy.adot_amp_write[0].arn
   }
 
   service_connect_configuration = {
     namespace = aws_service_discovery_private_dns_namespace.mcp.arn
-    service = [{
-      client_alias = {
-        port     = 8890
-        dns_name = "metrics-service"
+    service = [
+      {
+        client_alias = {
+          port     = 8890
+          dns_name = "metrics-service"
+        }
+        port_name      = "metrics-api"
+        discovery_name = "metrics-service"
       }
-      port_name      = "metrics-api"
-      discovery_name = "metrics-service"
-    }]
+    ]
   }
 
   container_definitions = {
@@ -205,6 +211,40 @@ module "ecs_service_metrics" {
         startPeriod = 30
       }
     }
+
+    # ADOT collector sidecar — scrapes metrics-service on localhost:9465
+    # and remote-writes to AMP. Co-located to avoid Service Connect DNS
+    # resolution issues (HTTP-type Cloud Map services have no Route53 records).
+    adot-collector = {
+      cpu                    = 256
+      memory                 = 512
+      essential              = false
+      image                  = "public.ecr.aws/aws-observability/aws-otel-collector:latest"
+      versionConsistency     = "disabled"
+      readonlyRootFilesystem = false
+
+      command = ["--config=env:AOT_CONFIG_CONTENT"]
+
+      environment = [
+        {
+          name  = "AOT_CONFIG_CONTENT"
+          value = local.adot_config
+        },
+        {
+          name  = "AWS_REGION"
+          value = data.aws_region.current.id
+        }
+      ]
+
+      enable_cloudwatch_logging              = true
+      cloudwatch_log_group_name              = "/ecs/${local.name_prefix}-adot-collector"
+      cloudwatch_log_group_retention_in_days = 30
+
+      dependencies = [{
+        containerName = "metrics-service"
+        condition     = "HEALTHY"
+      }]
+    }
   }
 
   subnet_ids = var.private_subnet_ids
@@ -223,13 +263,6 @@ module "ecs_service_metrics" {
       ip_protocol                  = "tcp"
       referenced_security_group_id = module.ecs_service_registry.security_group_id
     }
-    adot_9465 = {
-      description = "Prometheus scrape from ADOT collector"
-      from_port   = 9465
-      to_port     = 9465
-      ip_protocol = "tcp"
-      cidr_ipv4   = data.aws_vpc.vpc.cidr_block
-    }
   }
   security_group_egress_rules = {
     all = {
@@ -243,10 +276,11 @@ module "ecs_service_metrics" {
 
 
 # =============================================================================
-# ADOT COLLECTOR ECS SERVICE
+# ADOT COLLECTOR — IAM POLICY FOR AMP REMOTE WRITE
 # =============================================================================
+# ADOT runs as a sidecar in the metrics-service task (above).
+# This policy is attached to the metrics-service task role.
 
-# IAM policy for ADOT to write to AMP
 resource "aws_iam_policy" "adot_amp_write" {
   count       = var.enable_observability ? 1 : 0
   name_prefix = "${local.name_prefix}-adot-amp-write-"
@@ -266,120 +300,6 @@ resource "aws_iam_policy" "adot_amp_write" {
       }
     ]
   })
-
-  tags = local.common_tags
-}
-
-module "ecs_service_adot" {
-  count   = var.enable_observability ? 1 : 0
-  source  = "terraform-aws-modules/ecs/aws//modules/service"
-  version = "~> 6.0"
-
-  name        = "${local.name_prefix}-adot-collector"
-  cluster_arn = var.ecs_cluster_arn
-  cpu         = 256
-  memory      = 512
-
-  desired_count    = 1
-  enable_autoscaling = false
-
-  enable_execute_command = true
-
-  requires_compatibilities = ["FARGATE", "EC2"]
-  capacity_provider_strategy = {
-    FARGATE = {
-      capacity_provider = "FARGATE"
-      weight            = 100
-      base              = 1
-    }
-  }
-
-  create_task_exec_iam_role = true
-  task_exec_iam_role_policies = {
-    EcsExecTaskExecution = aws_iam_policy.ecs_exec_task_execution.arn
-  }
-  create_tasks_iam_role = true
-  tasks_iam_role_policies = {
-    EcsExecTask     = aws_iam_policy.ecs_exec_task.arn
-    AMPRemoteWrite  = aws_iam_policy.adot_amp_write[0].arn
-  }
-
-  service_connect_configuration = {
-    namespace = aws_service_discovery_private_dns_namespace.mcp.arn
-  }
-
-  container_definitions = {
-    adot-collector = {
-      cpu                    = 256
-      memory                 = 512
-      essential              = true
-      image                  = "public.ecr.aws/aws-observability/aws-otel-collector:latest"
-      versionConsistency     = "disabled"
-      readonlyRootFilesystem = false
-
-      command = ["--config=env:AOT_CONFIG_CONTENT"]
-
-      portMappings = [
-        {
-          name          = "otlp-grpc"
-          containerPort = 4317
-          protocol      = "tcp"
-        },
-        {
-          name          = "otlp-http"
-          containerPort = 4318
-          protocol      = "tcp"
-        }
-      ]
-
-      environment = [
-        {
-          name  = "AOT_CONFIG_CONTENT"
-          value = local.adot_config
-        },
-        {
-          name  = "AWS_REGION"
-          value = data.aws_region.current.id
-        }
-      ]
-
-      enable_cloudwatch_logging              = true
-      cloudwatch_log_group_name              = "/ecs/${local.name_prefix}-adot-collector"
-      cloudwatch_log_group_retention_in_days = 30
-
-      healthCheck = {
-        command     = ["CMD-SHELL", "curl -f http://localhost:13133/ || exit 1"]
-        interval    = 30
-        timeout     = 5
-        retries     = 3
-        startPeriod = 30
-      }
-    }
-  }
-
-  subnet_ids = var.private_subnet_ids
-  security_group_ingress_rules = {
-    otlp_grpc = {
-      description = "OTLP gRPC"
-      from_port   = 4317
-      to_port     = 4317
-      ip_protocol = "tcp"
-      cidr_ipv4   = data.aws_vpc.vpc.cidr_block
-    }
-    otlp_http = {
-      description = "OTLP HTTP"
-      from_port   = 4318
-      to_port     = 4318
-      ip_protocol = "tcp"
-      cidr_ipv4   = data.aws_vpc.vpc.cidr_block
-    }
-  }
-  security_group_egress_rules = {
-    all = {
-      ip_protocol = "-1"
-      cidr_ipv4   = "0.0.0.0/0"
-    }
-  }
 
   tags = local.common_tags
 }
@@ -549,6 +469,10 @@ module "ecs_service_grafana" {
         {
           name  = "GF_AUTH_SIGV4_AUTH_ENABLED"
           value = "true"
+        },
+        {
+          name  = "GF_AWS_ALLOWED_AUTH_PROVIDERS"
+          value = "default,ec2_iam_role"
         },
         {
           name  = "AMP_ENDPOINT"
