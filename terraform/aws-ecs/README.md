@@ -1004,7 +1004,8 @@ For running Terraform and the deployment scripts, your IAM user or role needs th
         "sns:*",
         "ssm:*",
         "kms:*",
-        "servicediscovery:*"
+        "servicediscovery:*",
+        "aps:*"
     ],
     "Resource": "*"
 }
@@ -1013,6 +1014,8 @@ For running Terraform and the deployment scripts, your IAM user or role needs th
 **Note:** For production, consider restricting these permissions to specific resource ARNs.
 
 **Note:** The `cloudfront:*` permission is required for CloudFront deployment modes (Mode 1: CloudFront Only, Mode 3: CloudFront + Custom Domain). If you are only using Mode 2 (Custom Domain Only), you can omit this permission.
+
+**Note:** The `aps:*` permission is required when `enable_observability = true` (Amazon Managed Prometheus). If you are not using the observability pipeline, you can omit this permission.
 
 **ECS Task Role Security:**
 - ECS task roles follow principle of least privilege
