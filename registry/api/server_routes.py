@@ -807,11 +807,11 @@ async def internal_register_service(
         try:
             encrypt_credential_in_server_dict(server_entry)
         except ValueError as e:
+            logger.error(f"Credential encryption failed for server {path}: {e}")
             return JSONResponse(
                 status_code=500,
                 content={
-                    "error": "Credential encryption failed",
-                    "reason": str(e),
+                    "error": "Credential encryption failed. Please ensure SECRET_KEY is configured.",
                 },
             )
 
@@ -2371,11 +2371,11 @@ async def register_service_api(
         try:
             encrypt_credential_in_server_dict(server_entry)
         except ValueError as e:
+            logger.error(f"Credential encryption failed for server {path}: {e}")
             return JSONResponse(
                 status_code=500,
                 content={
-                    "error": "Credential encryption failed",
-                    "reason": str(e),
+                    "error": "Credential encryption failed. Please ensure SECRET_KEY is configured.",
                 },
             )
 
@@ -2563,11 +2563,11 @@ async def update_server_auth_credential(
         try:
             encrypt_credential_in_server_dict(existing_server)
         except ValueError as e:
+            logger.error(f"Credential encryption failed for server {server_path}: {e}")
             return JSONResponse(
                 status_code=500,
                 content={
-                    "error": "Credential encryption failed",
-                    "reason": str(e),
+                    "error": "Credential encryption failed. Please ensure SECRET_KEY is configured.",
                 },
             )
 
