@@ -3269,6 +3269,38 @@ def cmd_peer_update(args: argparse.Namespace) -> int:
         return 1
 
 
+def cmd_peer_update_token(args: argparse.Namespace) -> int:
+    """
+    Update only the federation token for a peer registry.
+
+    This command is useful for:
+    - Recovering from token loss (issue #561)
+    - Rotating federation tokens without modifying other peer config
+    - Fixing authentication issues after peer updates
+
+    Args:
+        args: Command arguments with peer_id and federation_token
+
+    Returns:
+        Exit code (0 for success, 1 for failure)
+    """
+    try:
+        client = _create_client(args)
+
+        response = client.update_peer_token(
+            peer_id=args.peer_id,
+            federation_token=args.federation_token
+        )
+
+        logger.info(f"Federation token updated successfully for peer: {args.peer_id}")
+        print(json.dumps(response, indent=2, default=str))
+        return 0
+
+    except Exception as e:
+        logger.error(f"Update peer token failed: {e}")
+        return 1
+
+
 def cmd_peer_remove(args: argparse.Namespace) -> int:
     """
     Remove a peer registry.
@@ -3317,20 +3349,24 @@ def cmd_peer_sync(args: argparse.Namespace) -> int:
             print(json.dumps(response, indent=2, default=str))
             return 0
 
+        # Check success field from SyncResult model
+        success = response.get('success', False)
+        status_text = "SUCCESS" if success else "FAILED"
+
         print(f"\nSync Results for peer '{args.peer_id}':")
-        print(f"  Status:          {response.get('status', 'unknown')}")
-        print(f"  Servers Synced:  {response.get('servers_synced', 0)}")
-        print(f"  Agents Synced:   {response.get('agents_synced', 0)}")
+        print(f"  Status:           {status_text}")
+        print(f"  Servers Synced:   {response.get('servers_synced', 0)}")
+        print(f"  Agents Synced:    {response.get('agents_synced', 0)}")
         print(f"  Servers Orphaned: {response.get('servers_orphaned', 0)}")
         print(f"  Agents Orphaned:  {response.get('agents_orphaned', 0)}")
 
-        errors = response.get('errors', [])
-        if errors:
-            print(f"\n  Errors ({len(errors)}):")
-            for error in errors:
-                print(f"    - {error}")
+        # SyncResult has 'error_message' (singular), not 'errors' (plural)
+        error_msg = response.get('error_message')
+        if error_msg:
+            print(f"\n  Error:")
+            print(f"    {error_msg}")
 
-        return 0
+        return 0 if success else 1
 
     except Exception as e:
         logger.error(f"Peer sync failed: {e}")
@@ -5028,6 +5064,23 @@ Examples:
         "Overrides federation_token in the JSON config file if both are provided."
     )
 
+    # Update peer token command
+    peer_update_token_parser = subparsers.add_parser(
+        "peer-update-token",
+        help="Update only the federation token for a peer registry"
+    )
+    peer_update_token_parser.add_argument(
+        "--peer-id",
+        required=True,
+        help="Peer registry identifier"
+    )
+    peer_update_token_parser.add_argument(
+        "--federation-token",
+        required=True,
+        help="New federation static token from the remote peer registry. "
+        "Use this to recover from token loss (issue #561) or rotate tokens."
+    )
+
     # Remove peer command
     peer_remove_parser = subparsers.add_parser(
         "peer-remove",
@@ -5342,6 +5395,7 @@ Examples:
         "peer-add": cmd_peer_add,
         "peer-get": cmd_peer_get,
         "peer-update": cmd_peer_update,
+        "peer-update-token": cmd_peer_update_token,
         "peer-remove": cmd_peer_remove,
         "peer-sync": cmd_peer_sync,
         "peer-sync-all": cmd_peer_sync_all,
