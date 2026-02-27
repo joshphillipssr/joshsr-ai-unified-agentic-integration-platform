@@ -3,7 +3,7 @@
 Add No-Auth Services to MCP Configuration
 
 This script scans the registry/servers JSON files and adds services with
-auth_type: "none" to the MCP configuration files (vscode_mcp.json and mcp.json).
+auth_scheme: "none" to the MCP configuration files (vscode_mcp.json and mcp.json).
 These services only require ingress authentication headers for access.
 """
 
@@ -97,23 +97,24 @@ def _get_oauth_tokens_dir() -> Path:
 
 
 def _scan_noauth_services() -> List[Dict[str, Any]]:
-    """Scan registry servers and find services with auth_type: none."""
+    """Scan registry servers and find services with auth_scheme: none."""
     registry_dir = _get_registry_servers_dir()
     noauth_services = []
-    
+
     logger.info(f"Scanning registry servers directory: {registry_dir}")
-    
+
     for json_file in registry_dir.glob("*.json"):
         # Skip server_state.json as requested
         if json_file.name == "server_state.json":
             continue
-            
+
         server_config = _load_json_file(json_file)
         if not server_config:
             continue
-            
-        auth_type = server_config.get("auth_type")
-        if auth_type == "none":
+
+        # Backward-compatible read: prefer auth_scheme, fall back to auth_type
+        auth_scheme = server_config.get("auth_scheme", server_config.get("auth_type", "none"))
+        if auth_scheme == "none":
             # Extract relevant service information
             service = {
                 "server_name": server_config.get("server_name", "Unknown"),
@@ -314,7 +315,7 @@ def main() -> None:
         noauth_services = _scan_noauth_services()
         
         if not noauth_services:
-            logger.info("No services with auth_type: 'none' found")
+            logger.info("No services with auth_scheme: 'none' found")
             return
         
         logger.info(f"Found {len(noauth_services)} no-auth services")

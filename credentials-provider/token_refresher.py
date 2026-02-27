@@ -410,31 +410,32 @@ def _refresh_token(filepath: Path, token_data: Dict) -> bool:
 
 def _scan_noauth_services() -> List[Dict]:
     """
-    Scan registry servers and find services with auth_type: none.
-    
+    Scan registry servers and find services with auth_scheme: none.
+
     Returns:
         List of no-auth service configurations
     """
     registry_dir = PROJECT_ROOT / "registry" / "servers"
     noauth_services = []
-    
+
     if not registry_dir.exists():
         logger.warning(f"Registry servers directory not found: {registry_dir}")
         return []
-    
+
     logger.debug(f"Scanning for no-auth services in: {registry_dir}")
-    
+
     for json_file in registry_dir.glob("*.json"):
         # Skip server_state.json
         if json_file.name == "server_state.json":
             continue
-            
+
         try:
             with open(json_file, 'r') as f:
                 server_config = json.load(f)
-                
-            auth_type = server_config.get("auth_type")
-            if auth_type == "none":
+
+            # Backward-compatible read: prefer auth_scheme, fall back to auth_type
+            auth_scheme = server_config.get("auth_scheme", server_config.get("auth_type", "none"))
+            if auth_scheme == "none":
                 # Extract relevant service information
                 service = {
                     "server_name": server_config.get("server_name", "Unknown"),

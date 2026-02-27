@@ -723,7 +723,7 @@ class HealthMonitoringService:
                 ping_payload = '{ "jsonrpc": "2.0", "id": "0", "method": "ping" }'
 
                 logger.info(f"[TRACE] Sending ping to endpoint: {endpoint}")
-                logger.info(f"[TRACE] Headers being sent: {headers}")
+                logger.info(f"[TRACE] Headers being sent: {self._mask_sensitive_headers(headers)}")
                 response = await client.post(endpoint, headers=headers, content=ping_payload, follow_redirects=True)
                 logger.info(f"[TRACE] Response status: {response.status_code}")
 
@@ -807,7 +807,7 @@ class HealthMonitoringService:
 
             try:
                 logger.info(f"[TRACE] Trying default endpoint: {endpoint}")
-                logger.info(f"[TRACE] Headers being sent: {headers}")
+                logger.info(f"[TRACE] Headers being sent: {self._mask_sensitive_headers(headers)}")
                 response = await client.post(endpoint, headers=headers, content=ping_payload, follow_redirects=True)
                 logger.info(f"[TRACE] Response status: {response.status_code}")
                 if self._is_mcp_endpoint_healthy_streamable(response):
@@ -844,6 +844,30 @@ class HealthMonitoringService:
                 pass
         
         return False, "unhealthy: all transport checks failed"
+
+
+    def _mask_sensitive_headers(
+        self,
+        headers: Dict[str, str]
+    ) -> Dict[str, str]:
+        """
+        Mask sensitive authentication headers for logging.
+
+        Args:
+            headers: Dictionary of HTTP headers
+
+        Returns:
+            Dictionary with sensitive headers masked
+        """
+        masked = headers.copy()
+        sensitive_headers = ['Authorization', 'X-API-Key', 'X-Api-Key', 'Api-Key']
+
+        for key in masked:
+            # Check for common auth headers (case-insensitive)
+            if key in sensitive_headers or key.lower() in [h.lower() for h in sensitive_headers]:
+                masked[key] = "***REDACTED***"
+
+        return masked
 
 
     def _is_mcp_endpoint_healthy_streamable(self, response) -> bool:

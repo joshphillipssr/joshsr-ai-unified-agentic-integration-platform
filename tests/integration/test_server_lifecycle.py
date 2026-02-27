@@ -206,8 +206,6 @@ def test_server_data() -> dict[str, Any]:
         "proxy_pass_url": "http://localhost:9000",
         "tags": "test,integration",
         "num_tools": 5,
-        "num_stars": 4,
-        "is_python": True,
         "license": "MIT"
     }
 
@@ -227,8 +225,6 @@ def test_server_data_2() -> dict[str, Any]:
         "proxy_pass_url": "http://localhost:9001",
         "tags": "test,second",
         "num_tools": 3,
-        "num_stars": 5,
-        "is_python": False,
         "license": "Apache-2.0"
     }
 
@@ -528,8 +524,6 @@ class TestServerListing:
         assert "is_enabled" in server
         assert "tags" in server
         assert "num_tools" in server
-        assert "num_stars" in server
-        assert "is_python" in server
         assert "license" in server
         assert "health_status" in server
 

@@ -151,13 +151,16 @@ def _get_transport_type(server_config: dict) -> str:
 
 
 def _get_authentication_info(server_info: dict) -> dict:
-    """Extract authentication requirements for server"""
-    auth_type = server_info.get("auth_type", "oauth")
-    auth_provider = server_info.get("auth_provider", "default")
-    server_name = server_info.get("server_name", "unknown")
+    """Extract authentication requirements for server.
 
-    # Map auth types to standard formats
-    if auth_type == "oauth":
+    Reads auth_scheme (the new field). Legacy auth_type is migrated to
+    auth_scheme at read time by the service layer, so we only need to
+    check auth_scheme here.
+    """
+    auth_scheme = server_info.get("auth_scheme", "none")
+    auth_provider = server_info.get("auth_provider", "default")
+
+    if auth_scheme == "bearer":
         return {
             "type": "oauth2",
             "required": True,
@@ -165,19 +168,17 @@ def _get_authentication_info(server_info: dict) -> dict:
             "provider": auth_provider,
             "scopes": ["mcp:read", f"{auth_provider}:read"]
         }
-    elif auth_type == "api-key":
+    elif auth_scheme == "api_key":
+        header_name = server_info.get("auth_header_name", "X-API-Key")
         return {
             "type": "api-key",
             "required": True,
-            "header": "X-API-Key"
+            "header": header_name
         }
     else:
-        # Default to OAuth2 for unknown types
         return {
-            "type": "oauth2",
-            "required": True,
-            "authorization_url": "/auth/oauth/authorize",
-            "scopes": ["mcp:read", f"{server_name.lower()}:read"]
+            "type": "none",
+            "required": False
         }
 
 

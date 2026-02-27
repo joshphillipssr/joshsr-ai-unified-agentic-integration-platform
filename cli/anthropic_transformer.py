@@ -30,28 +30,7 @@ DEFAULT_TRANSPORT: str = "stdio"
 DEFAULT_DESCRIPTION: str = "MCP server imported from Anthropic Registry"
 DEFAULT_LICENSE: str = "MIT"
 DEFAULT_AUTH_PROVIDER: str = "keycloak"
-DEFAULT_AUTH_TYPE: str = "oauth"
-
-
-def _extract_package_info(
-    packages: Any
-) -> bool:
-    """Extract Python detection from packages field.
-
-    Args:
-        packages: Package information (dict or list)
-
-    Returns:
-        True if this is a Python package, False otherwise
-    """
-    is_python = False
-
-    if isinstance(packages, dict):
-        is_python = "pypi" in packages or "python" in packages
-    elif isinstance(packages, list):
-        is_python = any(pkg.get("registryType") == "pypi" for pkg in packages)
-
-    return is_python
+DEFAULT_AUTH_SCHEME: str = "bearer"
 
 
 def _substitute_env_vars_in_headers(
@@ -102,19 +81,19 @@ def _substitute_env_vars_in_headers(
 def _extract_remote_info(
     remotes: List[Dict[str, Any]]
 ) -> tuple[Optional[str], str, str, List[Dict[str, str]]]:
-    """Extract remote URL, transport type, auth type, and headers from remotes field.
+    """Extract remote URL, transport type, auth scheme, and headers from remotes field.
 
     Args:
         remotes: List of remote server configurations
 
     Returns:
-        Tuple of (remote_url, transport_type, auth_type, headers)
+        Tuple of (remote_url, transport_type, auth_scheme, headers)
     """
     import re
 
     remote_url = None
     transport_type = DEFAULT_TRANSPORT
-    auth_type = "none"
+    auth_scheme = "none"
     output_headers = []
 
     if remotes:
@@ -138,25 +117,25 @@ def _extract_remote_info(
                         # Convert to uppercase with underscores (e.g., smithery_api_key -> SMITHERY_API_KEY)
                         env_var_name = var_name.upper()
 
-                        # Determine auth type and create header value
+                        # Determine auth scheme and create header value
                         if "bearer" in header_value.lower():
-                            auth_type = "oauth"
+                            auth_scheme = "bearer"
                             output_headers.append({
                                 header_name: f"Bearer ${{{env_var_name}}}"
                             })
                         elif "api" in header_value.lower() or "key" in header_value.lower():
-                            auth_type = "api-key"
+                            auth_scheme = "api_key"
                             output_headers.append({
                                 header_name: f"${{{env_var_name}}}"
                             })
                         else:
-                            auth_type = "custom"
+                            auth_scheme = "bearer"
                             output_headers.append({
                                 header_name: f"${{{env_var_name}}}"
                             })
                     break
 
-    return remote_url, transport_type, auth_type, output_headers
+    return remote_url, transport_type, auth_scheme, output_headers
 
 
 def _generate_tags(
@@ -199,11 +178,8 @@ def transform_anthropic_to_gateway(
 
     tags = _generate_tags(name)
 
-    packages = server.get("packages", {})
-    is_python = _extract_package_info(packages)
-
     remotes = server.get("remotes", [])
-    remote_url, transport_type, auth_type, auth_headers = _extract_remote_info(remotes)
+    remote_url, transport_type, auth_scheme, auth_headers = _extract_remote_info(remotes)
 
     # Substitute environment variables in headers
     if auth_headers:
@@ -218,14 +194,12 @@ def transform_anthropic_to_gateway(
         "description": server.get("description", DEFAULT_DESCRIPTION),
         "path": f"/{safe_path}",
         "proxy_pass_url": proxy_url,
-        "auth_provider": DEFAULT_AUTH_PROVIDER if auth_type != "none" else None,
-        "auth_type": auth_type,
+        "auth_provider": DEFAULT_AUTH_PROVIDER if auth_scheme != "none" else None,
+        "auth_scheme": auth_scheme,
         "supported_transports": [transport_type],
         "tags": tags,
         "headers": auth_headers if auth_headers else [],
         "num_tools": 0,
-        "num_stars": 0,
-        "is_python": is_python,
         "license": DEFAULT_LICENSE,
         "remote_url": remote_url,
         "tool_list": []
