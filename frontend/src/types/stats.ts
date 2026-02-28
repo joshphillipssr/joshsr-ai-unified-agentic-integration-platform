@@ -1,53 +1,39 @@
 /**
  * Shared system statistics type definitions for the MCP Gateway Registry frontend.
  *
- * These interfaces mirror the backend Pydantic models defined in
- * registry/api/stats.py.
+ * These interfaces match the backend API response from /api/stats endpoint.
  */
 
 
 /**
  * Database health status.
- *
- * Indicates whether the database connection is healthy and operational.
  */
 export interface DatabaseStatus {
-  status: string;
-  message: string;
+  backend: string;    // "file" | "documentdb" | "mongodb-ce"
+  status: string;     // "Healthy" | "Unhealthy" | "N/A"
+  host: string;       // Database host (e.g., "localhost:27017")
 }
 
 
 /**
- * System-level statistics.
- *
- * Provides platform information, Python version, and system resource details.
+ * Registry resource counts.
+ */
+export interface RegistryStatsData {
+  servers: number;
+  agents: number;
+  skills: number;
+}
+
+
+/**
+ * Complete system statistics response from /api/stats.
  */
 export interface SystemStats {
-  hostname: string;
-  platform: string;
-  deployment_type: string;
-  python_version: string;
   uptime_seconds: number;
-  pid: number;
-}
-
-
-/**
- * Complete registry statistics response.
- *
- * Contains uptime, registry counts, and system information.
- */
-export interface RegistryStats {
-  uptime_seconds: number;
-  registry_stats: {
-    total_servers: number;
-    enabled_servers: number;
-    total_agents: number;
-    enabled_agents: number;
-    total_skills: number;
-    total_virtual_servers: number;
-    enabled_virtual_servers: number;
-  };
+  started_at: string;           // ISO 8601 timestamp
+  version: string;
+  deployment_type: string;      // "Kubernetes" | "ECS" | "EC2" | "Local"
+  deployment_mode: string;      // "with-gateway" | "registry-only"
+  registry_stats: RegistryStatsData;
   database_status: DatabaseStatus;
-  system_stats: SystemStats;
 }

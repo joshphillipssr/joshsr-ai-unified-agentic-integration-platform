@@ -3,7 +3,7 @@ import React, {
   useEffect,
 } from 'react';
 import {
-  RegistryStats,
+  SystemStats,
 } from '../types/stats';
 
 
@@ -12,13 +12,13 @@ import {
  *
  * Features:
  * - Fetches /api/stats every 60 seconds
- * - Displays human-readable uptime (e.g., "1d 2h 34m")
+ * - Displays human-readable uptime (e.g., "2 days 5 hours")
  * - Shows detailed system info on hover
  * - Handles loading and error states gracefully
  * - Hidden on mobile screens (<768px)
  */
 const UptimeDisplay: React.FC = () => {
-  const [stats, setStats] = useState<RegistryStats | null>(null);
+  const [stats, setStats] = useState<SystemStats | null>(null);
   const [error, setError] = useState<boolean>(false);
 
 
@@ -57,13 +57,16 @@ const UptimeDisplay: React.FC = () => {
 
     const parts: string[] = [];
     if (days > 0) {
-      parts.push(`${days}d`);
+      parts.push(`${days} day${days > 1 ? 's' : ''}`);
     }
     if (hours > 0) {
-      parts.push(`${hours}h`);
+      parts.push(`${hours} hour${hours > 1 ? 's' : ''}`);
     }
-    if (minutes > 0 || parts.length === 0) {
-      parts.push(`${minutes}m`);
+    if (parts.length === 0 && minutes > 0) {
+      parts.push(`${minutes} minute${minutes > 1 ? 's' : ''}`);
+    }
+    if (parts.length === 0) {
+      return 'less than a minute';
     }
 
     return parts.join(' ');
@@ -87,7 +90,7 @@ const UptimeDisplay: React.FC = () => {
 
 
   const uptimeText = formatUptime(stats.uptime_seconds);
-  const dbStatusColor = stats.database_status.status === 'healthy'
+  const dbStatusColor = stats.database_status.status.toLowerCase() === 'healthy'
     ? 'text-green-600 dark:text-green-400'
     : 'text-red-600 dark:text-red-400';
 
@@ -101,40 +104,48 @@ const UptimeDisplay: React.FC = () => {
       {/* Tooltip on hover */}
       <div className="absolute right-0 top-full mt-2 w-80 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg ring-1 ring-black ring-opacity-5 p-4">
-          {/* System Info */}
-          <div className="mb-3">
-            <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
-              System Information
-            </h3>
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">
+            MCP Gateway Registry
+          </h3>
+
+          {/* Version & Uptime */}
+          <div className="space-y-1 text-xs mb-3">
+            <div className="flex justify-between">
+              <span className="text-gray-500 dark:text-gray-400">Version:</span>
+              <span className="text-gray-900 dark:text-gray-100 font-mono">
+                {stats.version}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500 dark:text-gray-400">Uptime:</span>
+              <span className="text-gray-900 dark:text-gray-100">
+                {uptimeText}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500 dark:text-gray-400">Started:</span>
+              <span className="text-gray-900 dark:text-gray-100">
+                {new Date(stats.started_at).toLocaleString()}
+              </span>
+            </div>
+          </div>
+
+          {/* Deployment */}
+          <div className="mb-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+            <h4 className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+              Deployment
+            </h4>
             <div className="space-y-1 text-xs">
               <div className="flex justify-between">
-                <span className="text-gray-500 dark:text-gray-400">Hostname:</span>
-                <span className="text-gray-900 dark:text-gray-100 font-mono">
-                  {stats.system_stats.hostname}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500 dark:text-gray-400">Platform:</span>
+                <span className="text-gray-500 dark:text-gray-400">Type:</span>
                 <span className="text-gray-900 dark:text-gray-100">
-                  {stats.system_stats.platform}
+                  {stats.deployment_type}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-500 dark:text-gray-400">Deployment:</span>
+                <span className="text-gray-500 dark:text-gray-400">Mode:</span>
                 <span className="text-gray-900 dark:text-gray-100">
-                  {stats.system_stats.deployment_type}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500 dark:text-gray-400">Python:</span>
-                <span className="text-gray-900 dark:text-gray-100 font-mono">
-                  {stats.system_stats.python_version}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500 dark:text-gray-400">PID:</span>
-                <span className="text-gray-900 dark:text-gray-100 font-mono">
-                  {stats.system_stats.pid}
+                  {stats.deployment_mode}
                 </span>
               </div>
             </div>
@@ -142,32 +153,26 @@ const UptimeDisplay: React.FC = () => {
 
           {/* Registry Stats */}
           <div className="mb-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-            <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
-              Registry Statistics
-            </h3>
+            <h4 className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+              Registry Stats
+            </h4>
             <div className="space-y-1 text-xs">
               <div className="flex justify-between">
                 <span className="text-gray-500 dark:text-gray-400">Servers:</span>
                 <span className="text-gray-900 dark:text-gray-100">
-                  {stats.registry_stats.enabled_servers} / {stats.registry_stats.total_servers}
+                  {stats.registry_stats.servers}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500 dark:text-gray-400">Agents:</span>
                 <span className="text-gray-900 dark:text-gray-100">
-                  {stats.registry_stats.enabled_agents} / {stats.registry_stats.total_agents}
+                  {stats.registry_stats.agents}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500 dark:text-gray-400">Skills:</span>
                 <span className="text-gray-900 dark:text-gray-100">
-                  {stats.registry_stats.total_skills}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500 dark:text-gray-400">Virtual Servers:</span>
-                <span className="text-gray-900 dark:text-gray-100">
-                  {stats.registry_stats.enabled_virtual_servers} / {stats.registry_stats.total_virtual_servers}
+                  {stats.registry_stats.skills}
                 </span>
               </div>
             </div>
@@ -175,21 +180,28 @@ const UptimeDisplay: React.FC = () => {
 
           {/* Database Status */}
           <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
-            <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
-              Database Status
-            </h3>
-            <div className="text-xs">
-              <div className="flex justify-between items-center">
+            <h4 className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+              Database
+            </h4>
+            <div className="space-y-1 text-xs">
+              <div className="flex justify-between">
+                <span className="text-gray-500 dark:text-gray-400">Backend:</span>
+                <span className="text-gray-900 dark:text-gray-100">
+                  {stats.database_status.backend}
+                </span>
+              </div>
+              <div className="flex justify-between">
                 <span className="text-gray-500 dark:text-gray-400">Status:</span>
-                <span className={`font-semibold ${dbStatusColor}`}>
+                <span className={`font-medium ${dbStatusColor}`}>
                   {stats.database_status.status}
                 </span>
               </div>
-              {stats.database_status.message && (
-                <div className="mt-1 text-gray-600 dark:text-gray-400 text-xs">
-                  {stats.database_status.message}
-                </div>
-              )}
+              <div className="flex justify-between">
+                <span className="text-gray-500 dark:text-gray-400">Host:</span>
+                <span className="text-gray-900 dark:text-gray-100 font-mono text-xs">
+                  {stats.database_status.host}
+                </span>
+              </div>
             </div>
           </div>
         </div>
