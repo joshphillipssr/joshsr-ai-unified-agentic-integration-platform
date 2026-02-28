@@ -105,21 +105,15 @@ const UptimeDisplay: React.FC = () => {
       <div className="absolute right-0 top-full mt-2 w-80 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg ring-1 ring-black ring-opacity-5 p-4">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">
-            MCP Gateway Registry
+            AI Gateway and Registry
           </h3>
 
-          {/* Version & Uptime */}
+          {/* Version & Start Time */}
           <div className="space-y-1 text-xs mb-3">
             <div className="flex justify-between">
               <span className="text-gray-500 dark:text-gray-400">Version:</span>
               <span className="text-gray-900 dark:text-gray-100 font-mono">
                 {stats.version}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500 dark:text-gray-400">Uptime:</span>
-              <span className="text-gray-900 dark:text-gray-100">
-                {uptimeText}
               </span>
             </div>
             <div className="flex justify-between">
