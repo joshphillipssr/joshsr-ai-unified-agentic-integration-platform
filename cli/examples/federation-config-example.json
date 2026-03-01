@@ -10,13 +10,13 @@
     ]
   },
   "asor": {
-    "enabled": true,
-    "endpoint": "https://wcpdev-services1.wd103.myworkday.com/ccx/api/asor/v1/awsasor_wcpdev1",
+    "enabled": false,
+    "endpoint": "https://your-asor-endpoint.example.com/api/asor/v1/your-tenant",
     "auth_env_var": "ASOR_ACCESS_TOKEN",
-    "sync_on_startup": true,
+    "sync_on_startup": false,
     "agents": [
-      {"id": "aws_assistant"},
-      {"id": "data_analyst"}
+      {"id": "agent_1"},
+      {"id": "agent_2"}
     ]
   }
 }
