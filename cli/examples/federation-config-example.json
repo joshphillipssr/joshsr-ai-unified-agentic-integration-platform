@@ -9,7 +9,8 @@
       {"name": "ai.smithery/Hint-Services-obsidian-github-mcp"},
       {"name": "ai.smithery/data-mindset-sts-google-forms-mcp"},
       {"name": "ai.smithery/saidsef-mcp-github-pr-issue-analyser"},
-      {"name": "ai.shawndurrani/mcp-merchant"}
+      {"name": "ai.shawndurrani/mcp-merchant"},
+      {"name": "com.hydrata/hydrata-mcp-server"}
     ]
   },
   "asor": {
