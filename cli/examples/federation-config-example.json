@@ -4,12 +4,6 @@
     "endpoint": "https://registry.modelcontextprotocol.io",
     "sync_on_startup": true,
     "servers": [
-      {"name": "io.github.jgador/websharp"},
-      {"name": "ai.smithery/smithery-ai-github"},
-      {"name": "ai.smithery/Hint-Services-obsidian-github-mcp"},
-      {"name": "ai.smithery/data-mindset-sts-google-forms-mcp"},
-      {"name": "ai.smithery/saidsef-mcp-github-pr-issue-analyser"},
-      {"name": "ai.shawndurrani/mcp-merchant"},
       {"name": "com.hydrata/hydrata-mcp-server"},
       {"name": "io.github.OneNicolas/mcp-service-public"},
       {"name": "ai.exa/exa"}
