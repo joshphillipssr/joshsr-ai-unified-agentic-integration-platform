@@ -339,7 +339,7 @@ async def lifespan(app: FastAPI):
                                     get_server_repository,
                                 )
 
-                                server_repo = await get_server_repository()
+                                server_repo = get_server_repository()
                                 reconciliation_result = await reconcile_anthropic_servers(
                                     config=federation_config,
                                     server_service=server_service,
@@ -350,8 +350,9 @@ async def lifespan(app: FastAPI):
 
                                 logger.info(
                                     f"✅ Reconciliation complete: "
-                                    f"removed {len(reconciliation_result.removed_servers)} stale servers, "
-                                    f"kept {len(reconciliation_result.active_servers)} active servers"
+                                    f"removed {reconciliation_result['removed_count']} stale servers, "
+                                    f"expected {reconciliation_result['expected_count']}, "
+                                    f"found {reconciliation_result['actual_count']} in DB"
                                 )
                             except Exception as e:
                                 logger.error(

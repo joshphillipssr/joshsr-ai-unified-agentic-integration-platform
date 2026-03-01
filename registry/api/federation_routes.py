@@ -147,7 +147,7 @@ async def save_federation_config(
             from ..repositories.factory import get_server_repository
             from ..core.nginx_service import nginx_service
 
-            server_repo = await get_server_repository()
+            server_repo = get_server_repository()
             reconciliation_result = await reconcile_anthropic_servers(
                 config=saved_config,
                 server_service=server_service,
@@ -228,7 +228,7 @@ async def update_federation_config(
             from ..repositories.factory import get_server_repository
             from ..core.nginx_service import nginx_service
 
-            server_repo = await get_server_repository()
+            server_repo = get_server_repository()
             reconciliation_result = await reconcile_anthropic_servers(
                 config=saved_config,
                 server_service=server_service,
@@ -751,7 +751,7 @@ async def sync_federation(
             from ..repositories.factory import get_server_repository
             from ..core.nginx_service import nginx_service as nginx_svc
 
-            server_repo = await get_server_repository()
+            server_repo = get_server_repository()
             reconciliation_result = await reconcile_anthropic_servers(
                 config=config,
                 server_service=server_service,
