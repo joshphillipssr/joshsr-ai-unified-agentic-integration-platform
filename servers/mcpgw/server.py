@@ -314,6 +314,16 @@ async def healthcheck(
 
 
 if __name__ == "__main__":
+    import os
+
     logger.info("Starting mcpgw server")
     logger.info("All tools accept registry_url parameter (default: http://localhost)")
-    mcp.run(transport="stdio")
+
+    # Use HTTP transport if PORT is set (Docker container), otherwise stdio
+    port = os.environ.get("PORT")
+    if port:
+        logger.info(f"Running in HTTP mode on 0.0.0.0:{port}")
+        mcp.run(transport="streamable-http", host="0.0.0.0", port=int(port))
+    else:
+        logger.info("Running in stdio mode")
+        mcp.run(transport="stdio")
