@@ -12,7 +12,7 @@
       {"name": "ai.shawndurrani/mcp-merchant"},
       {"name": "com.hydrata/hydrata-mcp-server"},
       {"name": "io.github.OneNicolas/mcp-service-public"},
-      {"name": "com.notion/mcp"}
+      {"name": "ai.alpic.test/test-mcp-server"}
     ]
   },
   "asor": {
