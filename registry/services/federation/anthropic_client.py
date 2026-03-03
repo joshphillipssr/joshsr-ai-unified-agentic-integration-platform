@@ -88,7 +88,25 @@ class AnthropicFederationClient(BaseFederationClient):
         Returns:
             List of server data dictionaries
         """
-        servers = []
+        servers: list[dict[str, Any]] = []
+
+        # Empty list means "import all" from Anthropic catalog.
+        if not server_configs:
+            logger.info("No explicit Anthropic server list provided, fetching full server catalog")
+            catalog_servers = self._fetch_all_catalog_servers()
+
+            for server_entry in catalog_servers:
+                server = server_entry.get("server", {})
+                server_name = server.get("name")
+                if not server_name:
+                    continue
+
+                transformed = self._transform_server_response(server_entry, server_name, None)
+                if transformed:
+                    servers.append(transformed)
+
+            logger.info(f"Successfully fetched {len(servers)} servers from Anthropic catalog")
+            return servers
 
         for config in server_configs:
             server_data = self.fetch_server(config.name, config)
@@ -99,6 +117,54 @@ class AnthropicFederationClient(BaseFederationClient):
 
         logger.info(f"Successfully fetched {len(servers)}/{len(server_configs)} servers")
         return servers
+
+    def _fetch_all_catalog_servers(self) -> list[dict[str, Any]]:
+        """
+        Fetch all server entries from Anthropic registry using cursor pagination.
+
+        Returns:
+            List of unique server entries from the catalog.
+        """
+        all_servers: list[dict[str, Any]] = []
+        seen_names: set[str] = set()
+        cursor: str | None = None
+        page = 0
+        max_pages = 1000
+
+        while page < max_pages:
+            page += 1
+            url = f"{self.endpoint}/{self.api_version}/servers"
+            if cursor:
+                url = f"{url}?cursor={quote(cursor, safe='')}"
+
+            response = self._make_request(url, headers={"Content-Type": "application/json"})
+            if not response:
+                logger.warning(f"Failed to fetch Anthropic catalog page {page}, stopping pagination")
+                break
+
+            servers = response.get("servers", [])
+            metadata = response.get("metadata", {})
+
+            for entry in servers:
+                server = entry.get("server", {}) if isinstance(entry, dict) else {}
+                server_name = server.get("name")
+                if not server_name or server_name in seen_names:
+                    continue
+                seen_names.add(server_name)
+                all_servers.append(entry)
+
+            next_cursor = metadata.get("nextCursor")
+            if not next_cursor:
+                break
+            cursor = next_cursor
+
+        if page >= max_pages:
+            logger.warning(
+                f"Reached pagination safety limit ({max_pages}) while fetching Anthropic catalog"
+            )
+
+        logger.info(f"Fetched {len(all_servers)} unique servers from Anthropic catalog")
+        return all_servers
 
     def _transform_server_response(
         self,

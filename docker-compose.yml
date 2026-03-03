@@ -143,6 +143,7 @@ services:
       - EMBEDDINGS_API_KEY=${EMBEDDINGS_API_KEY}
       - EMBEDDINGS_API_BASE=${EMBEDDINGS_API_BASE}
       - EMBEDDINGS_AWS_REGION=${EMBEDDINGS_AWS_REGION:-us-east-1}
+      - HF_HUB_DISABLE_XET=${HF_HUB_DISABLE_XET:-1}
       # Federation Peer Sync Configuration
       - FEDERATION_TOKEN_ENDPOINT=${FEDERATION_TOKEN_ENDPOINT}
       - FEDERATION_CLIENT_ID=${FEDERATION_CLIENT_ID}
@@ -330,6 +331,7 @@ services:
       - REGISTRY_BASE_URL=http://registry:7860
       - REGISTRY_USERNAME=${ADMIN_USER:-admin}
       - REGISTRY_PASSWORD=${ADMIN_PASSWORD}
+      - MCPGW_DEFAULT_SCOPES=${MCPGW_DEFAULT_SCOPES:-mcp-servers-unrestricted/read,mcp-servers-unrestricted/execute}
     volumes:
       - ${HOME}/mcp-gateway/servers:/app/registry/servers
       - ${HOME}/mcp-gateway/models:/app/registry/models
@@ -458,7 +460,11 @@ services:
       - ./keycloak/import:/opt/keycloak/data/import
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health/ready"]
+      test:
+        [
+          "CMD-SHELL",
+          "bash -ec 'exec 3<>/dev/tcp/127.0.0.1/8080; printf \"GET /realms/master/.well-known/openid-configuration HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n\" >&3; head -n 1 <&3 | grep -q \"200\"'",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3

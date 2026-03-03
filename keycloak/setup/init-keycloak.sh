@@ -71,7 +71,11 @@ create_realm() {
     
     # Check if realm already exists
     if realm_exists "$token"; then
-        echo -e "${YELLOW}Realm already exists. Skipping creation...${NC}"
+        echo -e "${YELLOW}Realm already exists. Ensuring HTTP is allowed for local dev...${NC}"
+        curl -s -X PUT "${KEYCLOAK_URL}/admin/realms/${REALM}" \
+            -H "Authorization: Bearer ${token}" \
+            -H "Content-Type: application/json" \
+            -d '{"sslRequired":"none"}' > /dev/null
         return 0
     fi
     
@@ -79,6 +83,7 @@ create_realm() {
     local realm_json='{
         "realm": "mcp-gateway",
         "enabled": true,
+        "sslRequired": "none",
         "registrationAllowed": false,
         "loginWithEmailAllowed": true,
         "duplicateEmailsAllowed": false,
