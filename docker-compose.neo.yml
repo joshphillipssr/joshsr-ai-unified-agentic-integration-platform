@@ -1,0 +1,27 @@
+services:
+  registry:
+    ports:
+      - "17860:7860"
+
+  auth-server:
+    ports:
+      - "18888:8888"
+
+  metrics-service:
+    ports:
+      - "18890:8890"
+      - "19465:9465"
+
+  mongodb:
+    ports: []
+
+  mcpgw-server:
+    ports:
+      - "8003:8003"
+    networks:
+      - default
+      - traefik_proxy
+
+networks:
+  traefik_proxy:
+    external: true
