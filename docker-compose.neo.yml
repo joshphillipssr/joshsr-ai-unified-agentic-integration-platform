@@ -69,7 +69,7 @@ services:
       - |
         set -e
         /app/.venv/bin/python -m ensurepip --upgrade >/dev/null 2>&1 || true
-        /app/.venv/bin/python -m pip install --quiet fastapi >/dev/null 2>&1 || /app/.venv/bin/python -m pip install fastapi
+        /app/.venv/bin/python -m pip install --quiet fastapi faiss-cpu >/dev/null 2>&1 || /app/.venv/bin/python -m pip install fastapi faiss-cpu
         exec /entrypoint.sh
     networks:
       default:
