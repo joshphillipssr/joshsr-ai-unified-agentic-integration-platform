@@ -31,6 +31,8 @@ services:
     environment:
       - AUTH_SERVER_EXTERNAL_URL=https://mcp.joshsr.ai/registry-auth
       - KEYCLOAK_EXTERNAL_URL=https://mcp.joshsr.ai/registry-auth
+      - ROOT_PATH=/registry-auth
+      - REGISTRY_ROOT_PATH=/registry
     ports:
       - "18888:8888"
     networks:
