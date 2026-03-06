@@ -1,6 +1,6 @@
 # Documentation
 
-This directory contains the MkDocs-based documentation for the MCP Gateway & Registry.
+This directory contains the MkDocs-based documentation for the JoshSr.AI Unified Agentic Integration Platform (UAIP).
 
 ## Building Documentation Locally
 
@@ -48,7 +48,7 @@ mkdocs build
 
 ## Deployment
 
-The documentation is automatically deployed to GitHub Pages when changes are pushed to the `main` branch via GitHub Actions.
+The documentation is automatically deployed to GitHub Pages when changes are pushed to the `production` branch via GitHub Actions.
 
 ### Manual Deployment
 

@@ -1,7 +1,9 @@
 <div align="center">
-<img src="registry/static/mcp_gateway_horizontal_white_logo.png" alt="MCP Gateway & Registry Logo" width="100%">
+<img src="registry/static/mcp_gateway_horizontal_white_logo.png" alt="UAIP Logo" width="100%">
 
-**Unified Agent & MCP Server Registry – Gateway for AI Development Tools**
+**JoshSr.AI Unified Agentic Integration Platform (UAIP)**
+
+**Unified Agent & MCP Server Registry - Gateway for AI Development Tools**
 
 [![GitHub stars](https://img.shields.io/github/stars/agentic-community/mcp-gateway-registry?style=flat&logo=github)](https://github.com/agentic-community/mcp-gateway-registry/stargazers)
 [![GitHub forks](https://img.shields.io/github/forks/agentic-community/mcp-gateway-registry?style=flat&logo=github)](https://github.com/agentic-community/mcp-gateway-registry/network)
@@ -17,9 +19,9 @@
 
 ---
 
-## What is MCP Gateway & Registry?
+## What is UAIP?
 
-The **MCP Gateway & Registry** is a unified platform designed for centralizing access to both MCP Servers and AI Agents using the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/introduction). It serves three core functions:
+The **JoshSr.AI Unified Agentic Integration Platform (UAIP)** is a unified platform designed for centralizing access to both MCP Servers and AI Agents using the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/introduction). It serves three core functions:
 
 1. **Unified MCP Server Gateway** – Centralized access point for multiple MCP servers
 2. **MCP Servers Registry** – Register, discover, and manage access to MCP servers with unified governance
@@ -63,7 +65,7 @@ The platform integrates with external registries such as Anthropic's MCP Registr
 
 ```
 ┌─────────────────────────────────────┐     ┌──────────────────────────────────────────────────────┐
-│          BEFORE: Chaos              │     │    AFTER: MCP Gateway & Registry                     │
+│          BEFORE: Chaos              │     │    AFTER: UAIP                                       │
 ├─────────────────────────────────────┤     ├──────────────────────────────────────────────────────┤
 │                                     │     │                                                      │
 │  Developer 1 ──┬──► MCP Server A    │     │  Developer 1 ──┐                  ┌─ MCP Server A    │
@@ -101,7 +103,7 @@ This platform serves as a comprehensive, unified registry supporting:
 
 Key distinction: **Unlike separate point solutions, this unified registry eliminates the need to maintain separate MCP server and agent systems**, providing a single control plane for agent orchestration, MCP server access, and agent-to-agent communication.
 
-## MCP Servers & Agents Registry
+## UAIP: MCP Servers & Agents Registry
 
 Watch how MCP Servers, A2A Agents, and External Registries work together for dynamic tool discovery:
 
@@ -129,7 +131,7 @@ Interactive terminal interface for chatting with AI models and discovering MCP t
 
 ## What's New
 
-- ⭐ **AWS Workshop Studio: Securing AI Agent Ecosystems with MCP Gateway and Registry** - Hands-on workshop covering deployment, authentication, governance, and security best practices for production AI agent ecosystems. Learn to deploy the MCP Gateway & Registry on AWS, configure enterprise authentication, implement fine-grained access control, and secure AI agent communications. [Start Workshop](https://catalog.us-east-1.prod.workshops.aws/workshops/0c3265a6-1a4a-467b-ae56-e4d019184b0e/en-US)
+- ⭐ **AWS Workshop Studio: Securing AI Agent Ecosystems with UAIP** - Hands-on workshop covering deployment, authentication, governance, and security best practices for production AI agent ecosystems. Learn to deploy UAIP on AWS, configure enterprise authentication, implement fine-grained access control, and secure AI agent communications. [Start Workshop](https://catalog.us-east-1.prod.workshops.aws/workshops/0c3265a6-1a4a-467b-ae56-e4d019184b0e/en-US)
 
 - 💻 **One-Command macOS Setup** - The quickest way to get started and experiment with the solution on your MacBook. Simply ask Claude Code or your favorite AI coding assistant to use the [macOS Setup Skill](.claude/skills/macos-setup/SKILL.md) and it will automatically clone the repository, install all dependencies, configure services (MongoDB, Keycloak, registry), register sample servers, and verify the complete stack is running. Perfect for single-developer environments and hands-on exploration. Supports both full setup and complete teardown with a single command. *ECS/EKS deployment skill coming very soon.*
 
@@ -275,7 +277,7 @@ Single gateway supporting both autonomous AI agents (machine-to-machine) and AI 
 
 ## Architecture
 
-The MCP Gateway & Registry provides a unified platform for both autonomous AI agents and AI coding assistants to access enterprise-curated tools through a centralized gateway with comprehensive authentication and governance.
+UAIP provides a unified platform for both autonomous AI agents and AI coding assistants to access enterprise-curated tools through a centralized gateway with comprehensive authentication and governance.
 
 ```mermaid
 flowchart TB
@@ -292,7 +294,7 @@ flowchart TB
         AgentN["AI Agent N"]
     end
 
-    subgraph EC2_Gateway["<b>MCP Gateway & Registry</b> (Amazon EC2 Instance)"]
+    subgraph EC2_Gateway["<b>UAIP</b> (Amazon EC2 Instance)"]
         subgraph NGINX["NGINX Reverse Proxy"]
             RP["Reverse Proxy Router"]
         end
@@ -425,7 +427,7 @@ flowchart TB
 ---
 ## Quick Start
 
-There are 4 options for setting up the MCP Gateway & Registry:
+There are 4 options for setting up UAIP:
 
 - **Option A: AI-Assisted macOS Setup** — The absolute fastest way to get started on macOS. Ask your AI coding assistant to use the [macOS Setup Skill](.claude/skills/macos-setup/SKILL.md) for fully automated one-command setup. Perfect for experimentation.
 - **Option B: Pre-built Images** — Fast setup using pre-built Docker or Podman containers. Recommended for most users.
@@ -436,7 +438,7 @@ There are 4 options for setting up the MCP Gateway & Registry:
 
 **The easiest way to get started on macOS.** Simply ask Claude Code or your AI coding assistant:
 
-> "Use the macOS setup skill to install and configure the MCP Gateway & Registry"
+> "Use the macOS setup skill to install and configure UAIP"
 
 The [macOS Setup Skill](.claude/skills/macos-setup/SKILL.md) will automatically:
 - ✅ Clone the repository and install all dependencies (Homebrew, Python, UV, Docker, Node.js)

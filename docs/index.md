@@ -1,13 +1,13 @@
 <div align="center">
-<img src="img/mcp_gateway_horizontal_white_logo.png" alt="MCP Gateway Logo" width="100%">
+<img src="img/mcp_gateway_horizontal_white_logo.png" alt="UAIP Logo" width="100%">
 
 **Gateway for AI Development Tools**
 
 </div>
 
-## MCP Server & Registry
+## JoshSr.AI Unified Agentic Integration Platform (UAIP)
 
-A comprehensive solution for managing, securing, and accessing Model Context Protocol (MCP) servers at scale. Built for enterprises, development teams, and autonomous AI agents.
+A comprehensive solution for managing, securing, and accessing Model Context Protocol (MCP) servers at scale. UAIP is built for enterprises, development teams, and autonomous AI agents.
 
 ### Demo Videos
 
@@ -64,8 +64,8 @@ Get up and running in 5 minutes with Docker Compose:
 
 ```bash
 # 1. Clone and setup
-git clone https://github.com/agentic-community/mcp-gateway-registry.git
-cd mcp-gateway-registry
+git clone https://github.com/joshphillipssr/joshsr-ai-unified-agentic-integration-platform.git
+cd joshsr-ai-unified-agentic-integration-platform
 
 # 2. Configure environment
 cp .env.example .env
@@ -102,7 +102,7 @@ flowchart TB
         AgentN["AI Agent N"]
     end
 
-    subgraph EC2_Gateway["<b>MCP Gateway & Registry</b> (Amazon EC2 Instance)"]
+    subgraph EC2_Gateway["<b>UAIP</b> (Amazon EC2 Instance)"]
         subgraph NGINX["NGINX Reverse Proxy"]
             RP["Reverse Proxy Router"]
         end
@@ -205,7 +205,7 @@ flowchart TB
     class DB1,DB2,API1,API2,API3 dataSource
 ```
 
-The MCP Gateway & Registry acts as a centralized hub that:
+UAIP acts as a centralized hub that:
 
 1. **Authenticates** users and AI agents through OAuth providers
 2. **Authorizes** access based on fine-grained scopes and permissions
