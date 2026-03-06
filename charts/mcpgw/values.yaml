@@ -2,18 +2,18 @@
 global:
   image:
     repository: public.ecr.aws/p3v1o3c6/mcpgw
-    tag: latest
+    tag: 1.0.16
     pullPolicy: IfNotPresent
 
 # Application configuration
 app:
-  name: mcpgw
+  name: mcpgw-server
   replicas: 1
   envSecretName: mcpgw-secret
   port: 8000
 
   # Registry connection
-  registryUrl: http://registry:7860
+  registryUrl: http://registry:80
 
   # Security settings
   # secretKey: Required for standalone deployment (not needed when deployed via stack).
@@ -32,7 +32,7 @@ app:
 # Service configuration
 service:
   type: ClusterIP
-  port: 8000
+  port: 8003
   annotations: {}
 
 # Resource limits and requests
