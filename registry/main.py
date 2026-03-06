@@ -9,6 +9,7 @@ domain routers while handling core app configuration.
 
 import logging
 import os
+import asyncio
 from contextlib import asynccontextmanager
 
 # Import datetime for uptime tracking
@@ -129,6 +130,42 @@ logger = logging.getLogger(__name__)
 logger.info(f"Logging configured. Writing to file: {log_file_path}")
 
 
+async def _refresh_search_indexes_in_background(search_repo, backend_name: str) -> None:
+    """Re-index servers and agents after startup without blocking readiness."""
+    try:
+        logger.info(f"📊 Background {backend_name} refresh: indexing registered services...")
+        all_servers = await server_service.get_all_servers()
+        for service_path, server_info in all_servers.items():
+            is_enabled = await server_service.is_service_enabled(service_path)
+            try:
+                await search_repo.index_server(service_path, server_info, is_enabled)
+            except Exception as e:
+                logger.error(
+                    f"Failed to update {backend_name} index for service {service_path}: {e}",
+                    exc_info=True,
+                )
+
+        logger.info(
+            f"✅ Background {backend_name} refresh: indexed {len(all_servers)} services"
+        )
+
+        logger.info(f"📊 Background {backend_name} refresh: indexing registered agents...")
+        all_agents = agent_service.list_agents()
+        for agent_card in all_agents:
+            is_enabled = agent_service.is_agent_enabled(agent_card.path)
+            try:
+                await search_repo.index_agent(agent_card.path, agent_card, is_enabled)
+            except Exception as e:
+                logger.error(
+                    f"Failed to update {backend_name} index for agent {agent_card.path}: {e}",
+                    exc_info=True,
+                )
+
+        logger.info(f"✅ Background {backend_name} refresh: indexed {len(all_agents)} agents")
+    except Exception as e:
+        logger.error(f"Background {backend_name} index refresh failed: {e}", exc_info=True)
+
+
 def _log_startup_configuration() -> None:
     """Log startup configuration with clear formatting."""
     logger.info("=" * 60)
@@ -225,38 +262,13 @@ async def lifespan(app: FastAPI):
         logger.info(f"🔍 Initializing {backend_name} search service...")
         await search_repo.initialize()
 
-        logger.info(f"📊 Updating {backend_name} index with all registered services...")
-        all_servers = await server_service.get_all_servers()
-        for service_path, server_info in all_servers.items():
-            is_enabled = await server_service.is_service_enabled(service_path)
-            try:
-                await search_repo.index_server(service_path, server_info, is_enabled)
-                logger.debug(f"Updated {backend_name} index for service: {service_path}")
-            except Exception as e:
-                logger.error(
-                    f"Failed to update {backend_name} index for service {service_path}: {e}",
-                    exc_info=True,
-                )
-
-        logger.info(f"✅ {backend_name} index updated with {len(all_servers)} services")
-
         logger.info("📋 Loading agent cards and state...")
         await agent_service.load_agents_and_state()
 
-        logger.info(f"📊 Updating {backend_name} index with all registered agents...")
-        all_agents = agent_service.list_agents()
-        for agent_card in all_agents:
-            is_enabled = agent_service.is_agent_enabled(agent_card.path)
-            try:
-                await search_repo.index_agent(agent_card.path, agent_card, is_enabled)
-                logger.debug(f"Updated {backend_name} index for agent: {agent_card.path}")
-            except Exception as e:
-                logger.error(
-                    f"Failed to update {backend_name} index for agent {agent_card.path}: {e}",
-                    exc_info=True,
-                )
-
-        logger.info(f"✅ {backend_name} index updated with {len(all_agents)} agents")
+        logger.info(f"📊 Scheduling background {backend_name} index refresh...")
+        app.state.search_index_refresh_task = asyncio.create_task(
+            _refresh_search_indexes_in_background(search_repo, backend_name)
+        )
 
         logger.info("🏥 Initializing health monitoring service...")
         await health_service.initialize()

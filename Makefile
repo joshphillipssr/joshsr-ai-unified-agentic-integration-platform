@@ -1,4 +1,4 @@
-.PHONY: help test test-unit test-integration test-e2e test-fast test-coverage test-auth test-servers test-search test-health test-core test-green-container test-full-container install-dev lint format check-deps clean build-keycloak push-keycloak build-and-push-keycloak deploy-keycloak update-keycloak save-outputs view-logs view-logs-keycloak view-logs-registry view-logs-auth view-logs-follow list-images build push build-push generate-manifest validate-config publish-dockerhub publish-dockerhub-component publish-dockerhub-version publish-dockerhub-no-mirror publish-local compose-up-agents compose-down-agents compose-logs-agents build-agents push-agents
+.PHONY: help test test-unit test-integration test-e2e test-fast test-coverage test-auth test-servers test-search test-health test-core test-green-container test-full-container check-registry-auth-path install-dev lint format check-deps clean build-keycloak push-keycloak build-and-push-keycloak deploy-keycloak update-keycloak save-outputs view-logs view-logs-keycloak view-logs-registry view-logs-auth view-logs-follow list-images build push build-push generate-manifest validate-config publish-dockerhub publish-dockerhub-component publish-dockerhub-version publish-dockerhub-no-mirror publish-local compose-up-agents compose-down-agents compose-logs-agents build-agents push-agents
 
 # Default target
 help:
@@ -24,6 +24,7 @@ help:
 	@echo "  test-search     Run search domain tests"
 	@echo "  test-health     Run health monitoring domain tests"
 	@echo "  test-core       Run core infrastructure tests"
+	@echo "  check-registry-auth-path Verify registry auth path returns unauthenticated 401"
 	@echo ""
 	@echo "Code Quality:"
 	@echo "  lint            Run linting checks"
@@ -122,6 +123,9 @@ test-green-container:
 
 test-full-container:
 	@./scripts/run-container-validation.sh full
+
+check-registry-auth-path:
+	@./scripts/check-registry-auth-path.sh
 
 # Code quality
 lint:

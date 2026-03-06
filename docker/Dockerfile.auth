@@ -32,6 +32,7 @@ ENV PYTHONUNBUFFERED=1
 # Install only runtime system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    jq \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

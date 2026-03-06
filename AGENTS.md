@@ -11,3 +11,4 @@ Repository-specific defaults:
 
 Operational note:
 - If container Python tooling drifts, run `just codex-container-python-stack` from `/Users/josh/Projects/joshphillipssr/codex-workspace` to restore the venv-first baseline.
+- Auth-path runbook: run `make check-registry-auth-path` (expects unauthenticated `401` from `/api/auth/me`); if it returns `500`, inspect registry nginx logs for `connect() failed ... auth-server`.

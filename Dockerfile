@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     nginx-extras \
     lua-cjson \
     curl \
+    jq \
     procps \
     openssl \
     git \
