@@ -3,9 +3,8 @@ services:
     ports: !override
       - "17860:7860"
     environment:
-      - ROOT_PATH=/registry
       - KEYCLOAK_URL=http://auth-server:8888
-      - AUTH_SERVER_EXTERNAL_URL=https://mcp.joshsr.ai/registry-auth
+      - AUTH_SERVER_EXTERNAL_URL=https://auth.mcp.joshsr.ai
     networks:
       - default
       - traefik_proxy
@@ -13,25 +12,17 @@ services:
       - traefik.enable=true
       - traefik.docker.network=traefik_proxy
       - traefik.http.services.mcp-agentic-registry.loadbalancer.server.port=80
-      - traefik.http.routers.mcp-agentic-registry-ui.rule=Host(`mcp.joshsr.ai`) && PathPrefix(`/registry`)
+      - traefik.http.routers.mcp-agentic-registry-ui.rule=Host(`registry.mcp.joshsr.ai`)
       - traefik.http.routers.mcp-agentic-registry-ui.entrypoints=websecure
       - traefik.http.routers.mcp-agentic-registry-ui.tls=true
       - traefik.http.routers.mcp-agentic-registry-ui.tls.certresolver=cf
-      - traefik.http.routers.mcp-agentic-registry-ui.priority=220
       - traefik.http.routers.mcp-agentic-registry-ui.service=mcp-agentic-registry
-      - traefik.http.routers.mcp-agentic-registry-assets.rule=Host(`mcp.joshsr.ai`) && (PathPrefix(`/api`) || PathPrefix(`/static`) || Path(`/favicon.ico`) || Path(`/manifest.json`) || Path(`/asset-manifest.json`) || Path(`/robots.txt`))
-      - traefik.http.routers.mcp-agentic-registry-assets.entrypoints=websecure
-      - traefik.http.routers.mcp-agentic-registry-assets.tls=true
-      - traefik.http.routers.mcp-agentic-registry-assets.tls.certresolver=cf
-      - traefik.http.routers.mcp-agentic-registry-assets.priority=210
-      - traefik.http.routers.mcp-agentic-registry-assets.service=mcp-agentic-registry
 
   auth-server:
     environment:
-      - AUTH_SERVER_EXTERNAL_URL=https://mcp.joshsr.ai/registry-auth
-      - KEYCLOAK_EXTERNAL_URL=https://mcp.joshsr.ai/registry-auth
-      - ROOT_PATH=/registry-auth
-      - REGISTRY_ROOT_PATH=/registry
+      - REGISTRY_URL=https://registry.mcp.joshsr.ai
+      - AUTH_SERVER_EXTERNAL_URL=https://auth.mcp.joshsr.ai
+      - KEYCLOAK_EXTERNAL_URL=https://auth.mcp.joshsr.ai
     ports:
       - "18888:8888"
     networks:
@@ -41,14 +32,11 @@ services:
       - traefik.enable=true
       - traefik.docker.network=traefik_proxy
       - traefik.http.services.mcp-agentic-auth.loadbalancer.server.port=8888
-      - traefik.http.routers.mcp-agentic-auth.rule=Host(`mcp.joshsr.ai`) && PathPrefix(`/registry-auth`)
+      - traefik.http.routers.mcp-agentic-auth.rule=Host(`auth.mcp.joshsr.ai`)
       - traefik.http.routers.mcp-agentic-auth.entrypoints=websecure
       - traefik.http.routers.mcp-agentic-auth.tls=true
       - traefik.http.routers.mcp-agentic-auth.tls.certresolver=cf
-      - traefik.http.routers.mcp-agentic-auth.priority=230
       - traefik.http.routers.mcp-agentic-auth.service=mcp-agentic-auth
-      - traefik.http.routers.mcp-agentic-auth.middlewares=mcp-agentic-auth-strip
-      - traefik.http.middlewares.mcp-agentic-auth-strip.stripprefix.prefixes=/registry-auth
 
   metrics-service:
     ports:
