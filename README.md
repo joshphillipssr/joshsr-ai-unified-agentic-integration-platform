@@ -540,6 +540,12 @@ The project includes comprehensive automated testing with pytest:
 # Run all tests
 make test
 
+# Container-safe one-command validation (creates/uses .venv)
+make test-green-container
+
+# Container-safe full suite (creates/uses .venv)
+make test-full-container
+
 # Run only unit tests (fast)
 make test-unit
 

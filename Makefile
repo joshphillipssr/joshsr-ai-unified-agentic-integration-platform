@@ -1,4 +1,4 @@
-.PHONY: help test test-unit test-integration test-e2e test-fast test-coverage test-auth test-servers test-search test-health test-core install-dev lint format check-deps clean build-keycloak push-keycloak build-and-push-keycloak deploy-keycloak update-keycloak save-outputs view-logs view-logs-keycloak view-logs-registry view-logs-auth view-logs-follow list-images build push build-push generate-manifest validate-config publish-dockerhub publish-dockerhub-component publish-dockerhub-version publish-dockerhub-no-mirror publish-local compose-up-agents compose-down-agents compose-logs-agents build-agents push-agents
+.PHONY: help test test-unit test-integration test-e2e test-fast test-coverage test-auth test-servers test-search test-health test-core test-green-container test-full-container install-dev lint format check-deps clean build-keycloak push-keycloak build-and-push-keycloak deploy-keycloak update-keycloak save-outputs view-logs view-logs-keycloak view-logs-registry view-logs-auth view-logs-follow list-images build push build-push generate-manifest validate-config publish-dockerhub publish-dockerhub-component publish-dockerhub-version publish-dockerhub-no-mirror publish-local compose-up-agents compose-down-agents compose-logs-agents build-agents push-agents
 
 # Default target
 help:
@@ -10,6 +10,8 @@ help:
 	@echo ""
 	@echo "Testing:"
 	@echo "  test            Run full test suite with coverage"
+	@echo "  test-green-container Single-command container-safe PR validation"
+	@echo "  test-full-container Single-command container-safe full suite"
 	@echo "  test-unit       Run unit tests only"
 	@echo "  test-integration Run integration tests only" 
 	@echo "  test-e2e        Run end-to-end tests only"
@@ -114,6 +116,12 @@ test-health:
 
 test-core:
 	@python scripts/test.py core
+
+test-green-container:
+	@./scripts/run-container-validation.sh targeted
+
+test-full-container:
+	@./scripts/run-container-validation.sh full
 
 # Code quality
 lint:

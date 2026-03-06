@@ -282,6 +282,7 @@ async def test_health_service_broadcast_health_update_specific_service(
 
     with patch("registry.services.server_service.server_service") as mock_server_service:
         mock_server_service.get_server_info = AsyncMock(return_value=mock_server_info)
+        mock_server_service.is_service_enabled = AsyncMock(return_value=True)
 
         # Add a mock connection
         mock_ws = AsyncMock(spec=WebSocket)
@@ -304,6 +305,7 @@ async def test_health_service_get_cached_health_data(health_service):
         mock_server_service.get_all_servers = AsyncMock(
             return_value={"/test-server": {"server_name": "test", "proxy_pass_url": "http://test"}}
         )
+        mock_server_service.is_service_enabled = AsyncMock(return_value=True)
 
         data = await health_service._get_cached_health_data()
 
@@ -574,20 +576,26 @@ async def test_health_service_update_tools_background(health_service, mock_serve
     mock_server_info_copy["tool_list"] = []
     mock_server_info_copy["num_tools"] = 0
 
-    with patch("registry.core.mcp_client.mcp_client_service") as mock_mcp:
-        mock_mcp.get_mcp_connection_result = AsyncMock(
-            return_value={
-                "tools": [{"name": "test_tool", "description": "Test"}],
-                "server_info": {"name": "test-server", "version": "1.0.0"},
-            }
-        )
+    import sys
+    import types
 
+    mock_mcp = MagicMock()
+    mock_mcp.get_mcp_connection_result = AsyncMock(
+        return_value={
+            "tools": [{"name": "test_tool", "description": "Test"}],
+            "server_info": {"name": "test-server", "version": "1.0.0"},
+        }
+    )
+    fake_mcp_module = types.ModuleType("registry.core.mcp_client")
+    fake_mcp_module.mcp_client_service = mock_mcp
+
+    with patch.dict(sys.modules, {"registry.core.mcp_client": fake_mcp_module}):
         with patch("registry.services.server_service.server_service") as mock_server_service:
             # First call returns server info without tools, second call returns it with tools
             mock_server_service.get_server_info = AsyncMock(return_value=mock_server_info_copy)
             mock_server_service.update_server = AsyncMock()
 
-            with patch("registry.utils.scopes_manager.update_server_scopes", new=AsyncMock()):
+            with patch("registry.services.scope_service.update_server_scopes", new=AsyncMock()):
                 # Add small sleep to allow background coroutine to run
                 await health_service._update_tools_background(service_path, proxy_url)
                 await asyncio.sleep(0.01)
@@ -604,6 +612,7 @@ async def test_health_service_get_all_health_status(health_service, mock_server_
         mock_server_service.get_all_servers = AsyncMock(
             return_value={"/test-server": mock_server_info}
         )
+        mock_server_service.is_service_enabled = AsyncMock(return_value=True)
 
         all_status = await health_service.get_all_health_status()
 
