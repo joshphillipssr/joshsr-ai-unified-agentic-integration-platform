@@ -19,8 +19,6 @@ services:
       - traefik.http.routers.mcp-agentic-registry-ui.tls.certresolver=cf
       - traefik.http.routers.mcp-agentic-registry-ui.priority=220
       - traefik.http.routers.mcp-agentic-registry-ui.service=mcp-agentic-registry
-      - traefik.http.routers.mcp-agentic-registry-ui.middlewares=mcp-agentic-registry-strip
-      - traefik.http.middlewares.mcp-agentic-registry-strip.stripprefix.prefixes=/registry
       - traefik.http.routers.mcp-agentic-registry-assets.rule=Host(`mcp.joshsr.ai`) && (PathPrefix(`/api`) || PathPrefix(`/static`) || Path(`/favicon.ico`) || Path(`/manifest.json`) || Path(`/asset-manifest.json`) || Path(`/robots.txt`))
       - traefik.http.routers.mcp-agentic-registry-assets.entrypoints=websecure
       - traefik.http.routers.mcp-agentic-registry-assets.tls=true
