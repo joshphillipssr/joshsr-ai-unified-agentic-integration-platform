@@ -12,7 +12,15 @@ import os
 import time
 
 import jwt as pyjwt
-from fastapi import HTTPException, Request, status
+
+try:
+    # Runtime import is required so FastAPI sees a concrete Request type for dependency injection.
+    from fastapi import Request
+except Exception:  # pragma: no cover - only used in non-FastAPI runtimes
+    try:
+        from starlette.requests import Request
+    except Exception:  # pragma: no cover
+        Request = object  # type: ignore[assignment]
 
 # Configure logging
 logging.basicConfig(
@@ -26,6 +34,18 @@ logger = logging.getLogger(__name__)
 _INTERNAL_JWT_ISSUER: str = "mcp-auth-server"
 _INTERNAL_JWT_AUDIENCE: str = "mcp-registry"
 _INTERNAL_JWT_TTL_SECONDS: int = 60
+
+
+def _http_exception(status_code: int, detail: str, headers: dict[str, str] | None = None):
+    """
+    Raise a FastAPI HTTPException lazily.
+
+    This keeps `generate_internal_token()` usable in lightweight runtimes
+    (for example the mcpgw MCP server) that do not install FastAPI.
+    """
+    from fastapi import HTTPException
+
+    raise HTTPException(status_code=status_code, detail=detail, headers=headers)
 
 
 def generate_internal_token(
@@ -84,8 +104,8 @@ async def validate_internal_auth(request: Request) -> str:
     auth_header = request.headers.get("Authorization")
 
     if not auth_header:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+        _http_exception(
+            status_code=401,
             detail="Missing authorization header",
             headers={"WWW-Authenticate": "Bearer"},
         )
@@ -96,8 +116,8 @@ async def validate_internal_auth(request: Request) -> str:
     if auth_header.startswith("Basic "):
         return _validate_basic_auth_deprecated(auth_header)
 
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
+    _http_exception(
+        status_code=401,
         detail="Unsupported authentication scheme",
     )
 
@@ -109,8 +129,8 @@ def _validate_bearer_token(auth_header: str) -> str:
     secret_key = os.environ.get("SECRET_KEY")
     if not secret_key:
         logger.error("SECRET_KEY not set, cannot validate internal JWT")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        _http_exception(
+            status_code=500,
             detail="Internal server configuration error",
         )
 
@@ -140,14 +160,14 @@ def _validate_bearer_token(auth_header: str) -> str:
 
     except pyjwt.ExpiredSignatureError:
         logger.warning("Expired JWT token for internal request")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+        _http_exception(
+            status_code=401,
             detail="Token has expired",
         )
     except (pyjwt.InvalidTokenError, ValueError) as e:
         logger.warning(f"JWT validation failed for internal request: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+        _http_exception(
+            status_code=401,
             detail="Invalid token",
         )
 
@@ -167,8 +187,8 @@ def _validate_basic_auth_deprecated(auth_header: str) -> str:
         username, password = decoded_credentials.split(":", 1)
     except (IndexError, ValueError, Exception) as e:
         logger.warning(f"Failed to decode Basic Auth credentials: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+        _http_exception(
+            status_code=401,
             detail="Invalid authentication format",
             headers={"WWW-Authenticate": "Basic"},
         )
@@ -178,15 +198,15 @@ def _validate_basic_auth_deprecated(auth_header: str) -> str:
 
     if not admin_password:
         logger.error("ADMIN_PASSWORD not set and Basic Auth attempted on internal endpoint")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        _http_exception(
+            status_code=500,
             detail="Internal server configuration error",
         )
 
     if username != admin_user or password != admin_password:
         logger.warning(f"Failed admin authentication attempt from {username}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+        _http_exception(
+            status_code=401,
             detail="Invalid admin credentials",
             headers={"WWW-Authenticate": "Basic"},
         )

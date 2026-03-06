@@ -121,7 +121,9 @@ async def reconcile_anthropic_servers(
     # Step 1: Get expected paths from config
     expected_paths = _config_server_names_to_paths(config)
 
-    # If anthropic is disabled entirely, all anthropic servers are stale
+    # If anthropic is disabled entirely, all anthropic servers are stale.
+    # If anthropic is enabled with an empty server list, this is "full catalog"
+    # mode and we should not remove anything based on config-path diff.
     if not config.anthropic.enabled:
         expected_paths = set()
 
@@ -138,6 +140,20 @@ async def reconcile_anthropic_servers(
         f"Reconciliation: {len(actual_paths)} servers found "
         f"in mcp_servers_default with source='anthropic'"
     )
+
+    # In full-catalog mode we cannot infer stale servers from config, so skip removal.
+    if config.anthropic.enabled and not config.anthropic.servers:
+        logger.info(
+            "Reconciliation: Anthropic full-catalog mode detected "
+            "(empty server list), skipping stale-server removals"
+        )
+        return {
+            "removed": [],
+            "removed_count": 0,
+            "expected_count": len(expected_paths),
+            "actual_count": len(actual_paths),
+            "dry_run": dry_run,
+        }
 
     # Step 3: Compute stale servers (in DB but not in config)
     stale_paths = actual_paths - expected_paths

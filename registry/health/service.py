@@ -292,7 +292,11 @@ class HealthMonitoringService:
             # Single service update - get data efficiently
             server_info = await server_service.get_server_info(service_path)
             if server_info:
-                health_data = self._get_service_health_data_fast(service_path, server_info)
+                is_enabled = await server_service.is_service_enabled(service_path)
+                health_data = self._get_service_health_data_fast(
+                    service_path,
+                    {**server_info, "is_enabled": is_enabled},
+                )
                 await self.websocket_manager.broadcast_update(service_path, health_data)
         else:
             # Full update - use cached data
@@ -313,7 +317,11 @@ class HealthMonitoringService:
 
         data = {}
         for path, server_info in all_servers.items():
-            data[path] = self._get_service_health_data_fast(path, server_info)
+            is_enabled = await server_service.is_service_enabled(path)
+            data[path] = self._get_service_health_data_fast(
+                path,
+                {**server_info, "is_enabled": is_enabled},
+            )
 
         self._cached_health_data = data
         self._cache_timestamp = current_time
@@ -1158,7 +1166,11 @@ class HealthMonitoringService:
 
         data = {}
         for path, server_info in all_servers.items():
-            data[path] = self._get_service_health_data_fast(path, server_info)
+            is_enabled = await server_service.is_service_enabled(path)
+            data[path] = self._get_service_health_data_fast(
+                path,
+                {**server_info, "is_enabled": is_enabled},
+            )
 
         return data
 
@@ -1272,13 +1284,32 @@ class HealthMonitoringService:
 
     def _get_service_health_data(self, service_path: str, server_info: dict = None) -> dict:
         """Get health data for a specific service - legacy method, use _get_service_health_data_fast for better performance."""
-        return self._get_service_health_data_fast(service_path, server_info or {})
+        if not server_info:
+            last_checked_dt = self.server_last_check_time.get(service_path)
+            last_checked_iso = last_checked_dt.isoformat() if last_checked_dt else None
+            return {
+                "status": self.server_health_status.get(service_path, HealthStatus.UNKNOWN),
+                "last_checked_iso": last_checked_iso,
+                "num_tools": 0,
+            }
+
+        return self._get_service_health_data_fast(service_path, server_info)
 
     def _get_service_health_data_fast(self, service_path: str, server_info: dict) -> dict:
         """Get health data for a specific service - optimized version."""
 
+        if "is_enabled" not in server_info:
+            last_checked_dt = self.server_last_check_time.get(service_path)
+            last_checked_iso = last_checked_dt.isoformat() if last_checked_dt else None
+            num_tools = server_info.get("num_tools", 0) if server_info else 0
+            return {
+                "status": self.server_health_status.get(service_path, HealthStatus.UNKNOWN),
+                "last_checked_iso": last_checked_iso,
+                "num_tools": num_tools,
+            }
+
         # Quick enabled check from server_info
-        is_enabled = server_info.get("is_enabled", False)
+        is_enabled = bool(server_info.get("is_enabled"))
 
         if not is_enabled:
             status = "disabled"
