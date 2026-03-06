@@ -282,6 +282,7 @@ async def test_health_service_broadcast_health_update_specific_service(
 
     with patch("registry.services.server_service.server_service") as mock_server_service:
         mock_server_service.get_server_info = AsyncMock(return_value=mock_server_info)
+        mock_server_service.is_service_enabled = AsyncMock(return_value=True)
 
         # Add a mock connection
         mock_ws = AsyncMock(spec=WebSocket)
@@ -304,6 +305,7 @@ async def test_health_service_get_cached_health_data(health_service):
         mock_server_service.get_all_servers = AsyncMock(
             return_value={"/test-server": {"server_name": "test", "proxy_pass_url": "http://test"}}
         )
+        mock_server_service.is_service_enabled = AsyncMock(return_value=True)
 
         data = await health_service._get_cached_health_data()
 
@@ -604,6 +606,7 @@ async def test_health_service_get_all_health_status(health_service, mock_server_
         mock_server_service.get_all_servers = AsyncMock(
             return_value={"/test-server": mock_server_info}
         )
+        mock_server_service.is_service_enabled = AsyncMock(return_value=True)
 
         all_status = await health_service.get_all_health_status()
 

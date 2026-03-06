@@ -111,9 +111,7 @@ def _get_internal_auth_headers() -> dict[str, str]:
         username = os.getenv("REGISTRY_USERNAME")
         password = os.getenv("REGISTRY_PASSWORD")
         if username and password:
-            basic_token = base64.b64encode(f"{username}:{password}".encode("utf-8")).decode(
-                "utf-8"
-            )
+            basic_token = base64.b64encode(f"{username}:{password}".encode()).decode()
             logger.warning(
                 "Falling back to Basic auth for internal API calls because JWT setup failed: %s",
                 jwt_error,
@@ -1464,7 +1462,40 @@ async def list_services(
     """
     logger.info("MCPGW: list_services tool called")
 
-    # Call the registry's internal list endpoint
+    # Enforce least-privilege results by filtering returned services/tools by user scopes.
+    scopes_config = await load_scopes_config()
+    user_scopes = []
+
+    if ctx:
+        try:
+            http_request = get_http_request()
+            if http_request:
+                headers = dict(http_request.headers)
+                user_scopes = extract_user_scopes_from_headers(headers)
+            else:
+                logger.warning("No HTTP request context available for scope extraction")
+        except RuntimeError:
+            logger.warning("Not in HTTP context, no scopes to extract")
+        except Exception as e:
+            logger.warning(f"Could not extract scopes from headers: {e}")
+
+    if not user_scopes:
+        fallback_scopes = get_default_user_scopes_from_env()
+        if fallback_scopes:
+            user_scopes = fallback_scopes
+            logger.warning(
+                "No user scopes found in request headers; using MCPGW_DEFAULT_SCOPES fallback"
+            )
+        else:
+            logger.warning("No user scopes found - denying service listing to avoid overexposure")
+            return {
+                "services": [],
+                "total_count": 0,
+                "error": "No user scopes found; cannot authorize service list",
+            }
+
+    # Call the registry's internal list endpoint (service-to-service auth) and
+    # apply user-scope filtering locally before returning results.
     endpoint = "/api/internal/list"
 
     try:
@@ -1479,31 +1510,46 @@ async def list_services(
                     continue
 
                 service_item = dict(service)
-                tool_list = service_item.get("tool_list", [])
-                service_item["tool_count"] = (
-                    len(tool_list)
-                    if isinstance(tool_list, list)
-                    else service_item.get("num_tools", 0)
+                raw_tool_list = service_item.get("tool_list", [])
+                if not isinstance(raw_tool_list, list):
+                    raw_tool_list = []
+
+                service_path = str(service_item.get("path", ""))
+                server_name = (
+                    service_path.lstrip("/") if service_path.startswith("/") else service_path
                 )
+                accessible_tools = []
+                for tool in raw_tool_list:
+                    if not isinstance(tool, dict):
+                        continue
+                    tool_name = tool.get("name")
+                    if not tool_name:
+                        continue
+                    if check_tool_access(server_name, tool_name, user_scopes, scopes_config):
+                        accessible_tools.append(tool)
+
+                # Omit services for which the user cannot access any tools.
+                if not accessible_tools:
+                    continue
+
+                service_item["tool_count"] = len(accessible_tools)
+                service_item["num_tools"] = len(accessible_tools)
 
                 if include_tool_list:
                     if include_tool_schemas:
-                        service_item["tool_list"] = tool_list
+                        service_item["tool_list"] = accessible_tools
                     else:
                         compact_tool_list = []
-                        if isinstance(tool_list, list):
-                            for tool in tool_list:
-                                if not isinstance(tool, dict):
-                                    continue
-                                compact_tool_list.append(
-                                    {
-                                        "name": tool.get("name"),
-                                        "description": (
-                                            (tool.get("parsed_description") or {}).get("main")
-                                            or "No description available."
-                                        ),
-                                    }
-                                )
+                        for tool in accessible_tools:
+                            compact_tool_list.append(
+                                {
+                                    "name": tool.get("name"),
+                                    "description": (
+                                        (tool.get("parsed_description") or {}).get("main")
+                                        or "No description available."
+                                    ),
+                                }
+                            )
                         service_item["tool_list"] = compact_tool_list
                 else:
                     service_item.pop("tool_list", None)
