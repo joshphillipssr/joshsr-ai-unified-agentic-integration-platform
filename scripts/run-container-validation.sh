@@ -8,6 +8,8 @@ cd "${REPO_ROOT}"
 MODE="${1:-targeted}"
 VENV_DIR="${VENV_DIR:-.venv}"
 BOOTSTRAP_PYTHON="${BOOTSTRAP_PYTHON:-python3}"
+FORCE_REINSTALL="${FORCE_REINSTALL:-0}"
+FINGERPRINT_FILE="${VENV_DIR}/.deps-fingerprint"
 
 if [[ "${MODE}" != "targeted" && "${MODE}" != "full" ]]; then
   echo "Usage: $0 [targeted|full]"
@@ -24,9 +26,22 @@ if [[ ! -x "${VENV_DIR}/bin/python" ]]; then
   "${BOOTSTRAP_PYTHON}" -m venv "${VENV_DIR}"
 fi
 
-echo "Installing/updating project dependencies in ${VENV_DIR}"
-"${VENV_DIR}/bin/python" -m pip install --upgrade pip
-"${VENV_DIR}/bin/pip" install -e ".[dev]"
+CURRENT_FINGERPRINT="$("${BOOTSTRAP_PYTHON}" - <<'PY'
+import hashlib
+from pathlib import Path
+
+print(hashlib.sha256(Path("pyproject.toml").read_bytes()).hexdigest())
+PY
+)"
+
+if [[ "${FORCE_REINSTALL}" == "1" ]] || [[ ! -f "${FINGERPRINT_FILE}" ]] || [[ "$(cat "${FINGERPRINT_FILE}")" != "${CURRENT_FINGERPRINT}" ]]; then
+  echo "Installing/updating project dependencies in ${VENV_DIR}"
+  "${VENV_DIR}/bin/python" -m pip install --upgrade pip
+  "${VENV_DIR}/bin/pip" install -e ".[dev]"
+  printf "%s" "${CURRENT_FINGERPRINT}" > "${FINGERPRINT_FILE}"
+else
+  echo "Dependency fingerprint unchanged; skipping pip install"
+fi
 
 echo "Checking test dependency imports"
 "${VENV_DIR}/bin/python" scripts/test.py check
